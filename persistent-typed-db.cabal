@@ -1,0 +1,63 @@
+-- This file has been generated from package.yaml by hpack version 0.17.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:                persistent-typed-db
+version:             0.0.1.0
+homepage:            https://github.com/githubuser/persistent-typed-db#readme
+bug-reports:         https://github.com/githubuser/persistent-typed-db/issues
+license:             BSD3
+license-file:        LICENSE
+author:              Matt Parsons
+maintainer:          parsonsmatt@gmail.com
+copyright:           2017 Matt Parsons
+category:            Web
+build-type:          Simple
+cabal-version:       >= 1.10
+
+extra-source-files:
+    CHANGELOG.md
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/persistent-typed-db
+
+library
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+    , persistent
+    , persistent-template
+    , conduit
+    , text
+    , transformers
+    , aeson
+    , http-api-data
+    , path-pieces
+    , bytestring
+  exposed-modules:
+      Database.Persist.Typed
+  default-language: Haskell2010
+
+test-suite specs
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , persistent
+    , persistent-template
+    , conduit
+    , text
+    , transformers
+    , aeson
+    , http-api-data
+    , path-pieces
+    , bytestring
+    , persistent-typed-db
+    , hspec
+  default-language: Haskell2010

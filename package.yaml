@@ -1,0 +1,38 @@
+name: persistent-typed-db
+version: 0.0.1.0
+category: Web
+author: Matt Parsons
+maintainer: parsonsmatt@gmail.com
+copyright: 2017 Matt Parsons
+license: BSD3
+github: githubuser/persistent-typed-db
+extra-source-files:
+- README.md
+- CHANGELOG.md
+
+dependencies:
+- base >=4.7 && <5
+- persistent
+- persistent-template
+- conduit
+- text
+- transformers
+- aeson
+- http-api-data
+- path-pieces
+- bytestring
+
+library:
+  source-dirs: src
+
+tests:
+  specs:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - persistent-typed-db
+    - hspec
