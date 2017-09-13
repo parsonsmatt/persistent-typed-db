@@ -30,6 +30,7 @@ import           Database.Persist.Sql.Util           (dbColumns, dbIdColumns,
                                                       keyAndEntityColumnNames,
                                                       parseEntityValues)
 import           Database.Persist.TH
+import           Language.Haskell.TH
 import           Web.HttpApiData
 import           Web.PathPieces
 
@@ -37,8 +38,33 @@ import           Web.PathPieces
 -- database, fill in the type parameter.
 newtype SqlFor a = SqlFor { unSqlFor :: SqlBackend }
 
+-- | 'AnySql' refers to general SQL queries that can be used across any
+-- database.
 type AnySql = forall a. SqlFor a
 
+-- | Specialize a query to a specific database. You should define aliases for
+-- this function for each database you use.
+--
+-- @
+-- data MainDb
+--
+-- data AccountDb
+--
+-- mainQuery :: 'ReaderT' 'SqlBackend' m a -> 'ReaderT' ('SqlFor' MainDb) m a
+-- mainQuery = 'specializeQuery'
+--
+-- accountQuery :: 'ReaderT' 'SqlBackend' m a -> 'ReaderT' ('SqlFor' AccountDb) m a
+-- accountQuery = 'specializeQuery'
+-- @
+specializeQuery :: ReaderT SqlBackend m a -> ReaderT (SqlFor db) m a
+specializeQuery = withReaderT unSqlFor
+
+-- | Use the 'SqlFor' type for the database connection backend.
+mkSqlSettingsFor :: Name -> MkPersistSettings
+mkSqlSettingsFor = mkPersistSettings . ConT
+
+-- The following instances are almost entirely copy-pasted from the Persistent
+-- library for SqlBackend.
 instance HasPersistBackend (SqlFor a) where
     type BaseBackend (SqlFor a) = SqlFor a
     persistBackend = id
@@ -82,7 +108,7 @@ instance PersistStoreRead (SqlFor a) where
 
 instance PersistStoreWrite (SqlFor a) where
     update _ [] = return ()
-    update k upds = withReaderT unSqlFor $ do
+    update k upds = specializeQuery $ do
         conn <- ask
         let go'' n Assign = n <> "=?"
             go'' n Add = Text.concat [n, "=", n, "+?"]
@@ -105,7 +131,7 @@ instance PersistStoreWrite (SqlFor a) where
       where
         go x = (fieldDB $ updateFieldDef x, updateUpdate x)
 
-    insert val = withReaderT unSqlFor $ do
+    insert val = specializeQuery $ do
         conn <- ask
         case connInsertSql conn t vals of
             ISRSingle sql -> withRawQuery sql vals $ do
@@ -160,7 +186,7 @@ instance PersistStoreWrite (SqlFor a) where
         vals = map toPersistValue $ toPersistFields val
 
     insertMany [] = return []
-    insertMany vals = withReaderT unSqlFor $ do
+    insertMany vals = specializeQuery $ do
         conn <- ask
 
         case connInsertManySql conn of
@@ -176,7 +202,7 @@ instance PersistStoreWrite (SqlFor a) where
 
 
     insertMany_ [] = return ()
-    insertMany_ vals0 = withReaderT unSqlFor $ do
+    insertMany_ vals0 = specializeQuery $ do
         conn <- ask
         case connMaxParams conn of
             Nothing -> insertMany_' vals0
@@ -216,11 +242,11 @@ instance PersistStoreWrite (SqlFor a) where
                 , wher
                 ]
             vals = map toPersistValue (toPersistFields val) `mappend` keyToValues k
-        withReaderT unSqlFor $ rawExecute sql vals
+        specializeQuery $ rawExecute sql vals
       where
         go conn x = connEscapeName conn x `Text.append` "=?"
 
-    insertKey k = withReaderT unSqlFor . insrepHelper "INSERT" k
+    insertKey k = specializeQuery . insrepHelper "INSERT" k
 
     repsert key value = do
         mExisting <- get key
@@ -230,7 +256,7 @@ instance PersistStoreWrite (SqlFor a) where
 
     delete k = do
         conn <- asks unSqlFor
-        withReaderT unSqlFor $ rawExecute (sql conn) (keyToValues k)
+        specializeQuery $ rawExecute (sql conn) (keyToValues k)
       where
         wher conn = whereStmtForKey conn k
         sql conn = Text.concat
@@ -242,7 +268,7 @@ instance PersistStoreWrite (SqlFor a) where
 
 -- orphaned instance for convenience of modularity
 instance PersistQueryRead (SqlFor a) where
-    count filts = withReaderT unSqlFor $ do
+    count filts = specializeQuery $ do
         conn <- ask
         let wher = if null filts
                     then ""
@@ -265,7 +291,7 @@ instance PersistQueryRead (SqlFor a) where
       where
         t = entityDef $ dummyFromFilts filts
 
-    selectSourceRes filts opts = withReaderT unSqlFor $ do
+    selectSourceRes filts opts = specializeQuery $ do
         conn <- ask
         srcRes <- rawQueryRes (sql conn) (getFiltsValues (SqlFor conn) filts)
         return $ fmap ($= CL.mapM parse) srcRes
@@ -293,7 +319,7 @@ instance PersistQueryRead (SqlFor a) where
             , ord (SqlFor conn)
             ]
 
-    selectKeysRes filts opts = withReaderT unSqlFor $ do
+    selectKeysRes filts opts = specializeQuery $ do
         conn <- ask
         srcRes <- rawQueryRes (sql conn) (getFiltsValues (SqlFor conn) filts)
         return $ fmap ($= CL.mapM parse) srcRes
@@ -337,7 +363,7 @@ instance PersistQueryRead (SqlFor a) where
                 Left err -> error $ "selectKeysImpl: keyFromValues failed" <> show err
 
 instance PersistUniqueWrite (SqlFor db) where
-    upsert record updates = withReaderT unSqlFor $ do
+    upsert record updates = specializeQuery $ do
       conn <- ask
       uniqueKey <- withReaderT SqlFor $ onlyUnique record
       case connUpsertSql conn of
@@ -367,7 +393,7 @@ instance PersistUniqueWrite (SqlFor db) where
           t = entityDef $ Just record
           unqs uniqueKey = concatMap persistUniqueToValues [uniqueKey]
 
-    deleteBy uniq = withReaderT unSqlFor $ do
+    deleteBy uniq = specializeQuery $ do
         conn <- ask
         let sql' = sql conn
             vals = persistUniqueToValues uniq
@@ -385,7 +411,7 @@ instance PersistUniqueWrite (SqlFor db) where
 
 
 instance PersistUniqueRead (SqlFor a) where
-    getBy uniq = withReaderT unSqlFor $ do
+    getBy uniq = specializeQuery $ do
         conn <- ask
         let sql =
                 Text.concat

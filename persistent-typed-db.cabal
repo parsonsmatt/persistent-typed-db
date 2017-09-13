@@ -28,15 +28,16 @@ library
       src
   build-depends:
       base >=4.7 && <5
-    , persistent
-    , persistent-template
-    , conduit
-    , text
-    , transformers
     , aeson
+    , bytestring
+    , conduit
     , http-api-data
     , path-pieces
-    , bytestring
+    , persistent
+    , persistent-template
+    , template-haskell
+    , text
+    , transformers
   exposed-modules:
       Database.Persist.Typed
   default-language: Haskell2010
@@ -49,15 +50,16 @@ test-suite specs
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
-    , persistent
-    , persistent-template
-    , conduit
-    , text
-    , transformers
     , aeson
+    , bytestring
+    , conduit
     , http-api-data
     , path-pieces
-    , bytestring
+    , persistent
+    , persistent-template
+    , template-haskell
+    , text
+    , transformers
     , persistent-typed-db
     , hspec
   default-language: Haskell2010

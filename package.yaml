@@ -12,15 +12,16 @@ extra-source-files:
 
 dependencies:
 - base >=4.7 && <5
-- persistent
-- persistent-template
-- conduit
-- text
-- transformers
 - aeson
+- bytestring
+- conduit
 - http-api-data
 - path-pieces
-- bytestring
+- persistent
+- persistent-template
+- template-haskell
+- text
+- transformers
 
 library:
   source-dirs: src
