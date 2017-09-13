@@ -3,7 +3,9 @@
 {-# LANGUAGE InstanceSigs               #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 
 module Database.Persist.Typed where
@@ -61,7 +63,7 @@ specializeQuery = withReaderT unSqlFor
 
 -- | Use the 'SqlFor' type for the database connection backend.
 mkSqlSettingsFor :: Name -> MkPersistSettings
-mkSqlSettingsFor = mkPersistSettings . ConT
+mkSqlSettingsFor n = mkPersistSettings (AppT (ConT ''SqlFor) (ConT n))
 
 -- The following instances are almost entirely copy-pasted from the Persistent
 -- library for SqlBackend.
