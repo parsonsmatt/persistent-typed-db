@@ -65,6 +65,16 @@ specializeQuery = withReaderT unSqlFor
 mkSqlSettingsFor :: Name -> MkPersistSettings
 mkSqlSettingsFor n = mkPersistSettings (AppT (ConT ''SqlFor) (ConT n))
 
+-- | Persistent's @toSqlKey@ and @fromSqlKey@ hardcode the 'SqlBackend', so we
+-- have to reimplement them here.
+toSqlKey :: (ToBackendKey (SqlFor a) record) => Int64 -> Key record
+toSqlKey = fromBackendKey . SqlForKey . SqlBackendKey
+
+-- | Persistent's @toSqlKey@ and @fromSqlKey@ hardcode the 'SqlBackend', so we
+-- have to reimplement them here.
+fromSqlKey :: ToBackendKey (SqlFor a) record => Key record -> Int64
+fromSqlKey = unSqlBackendKey . toBackendKey
+
 -- The following instances are almost entirely copy-pasted from the Persistent
 -- library for SqlBackend.
 instance HasPersistBackend (SqlFor a) where

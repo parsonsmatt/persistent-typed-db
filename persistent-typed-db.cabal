@@ -4,6 +4,8 @@
 
 name:                persistent-typed-db
 version:             0.0.1.0
+synopsis:            Type safe access to multiple databases.
+description:         See README.md for more details.
 homepage:            https://github.com/githubuser/persistent-typed-db#readme
 bug-reports:         https://github.com/githubuser/persistent-typed-db/issues
 license:             BSD3
