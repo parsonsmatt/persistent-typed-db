@@ -24,7 +24,7 @@ import qualified Data.Text                           as Text
 import           Database.Persist
 import           Database.Persist.Sql
 import           Database.Persist.Sql.Types.Internal
-import           Database.Persist.Sql.Util           (dbIdColumns,
+import           Database.Persist.Sql.Util           (dbColumns, dbIdColumns,
                                                       entityColumnNames,
                                                       isIdField,
                                                       keyAndEntityColumnNames,
@@ -336,9 +336,85 @@ instance PersistQueryRead (SqlFor a) where
                 Right k -> return k
                 Left err -> error $ "selectKeysImpl: keyFromValues failed" <> show err
 
+instance PersistUniqueWrite (SqlFor db) where
+    upsert record updates = withReaderT unSqlFor $ do
+      conn <- ask
+      uniqueKey <- withReaderT SqlFor $ onlyUnique record
+      case connUpsertSql conn of
+        Just upsertSql -> case updates of
+                            [] -> withReaderT SqlFor $ defaultUpsert record updates
+                            _:_ -> do
+                                let upds = Text.intercalate "," $ map (go' . go) updates
+                                    sql = upsertSql t upds
+                                    vals = map toPersistValue (toPersistFields record)
+                                        ++ map updatePersistValue updates
+                                        ++ unqs uniqueKey
+
+                                    go'' n Assign = n <> "=?"
+                                    go'' n Add = Text.concat [n, "=", escape (entityDB t) <> ".", n, "+?"]
+                                    go'' n Subtract = Text.concat [n, "=", escape (entityDB t) <> ".", n, "-?"]
+                                    go'' n Multiply = Text.concat [n, "=", escape (entityDB t) <> ".", n, "*?"]
+                                    go'' n Divide = Text.concat [n, "=", escape (entityDB t) <> ".", n, "/?"]
+                                    go'' _ (BackendSpecificUpdate up) = error $ Text.unpack $ "BackendSpecificUpdate" `Data.Monoid.mappend` up `mappend` "not supported"
+
+                                    go' (x, pu) = go'' (connEscapeName conn x) pu
+                                    go x = (fieldDB $ updateFieldDef x, updateUpdate x)
+
+                                x <- rawSql sql vals
+                                return $ head x
+        Nothing -> withReaderT SqlFor $ defaultUpsert record updates
+        where
+          t = entityDef $ Just record
+          unqs uniqueKey = concatMap persistUniqueToValues [uniqueKey]
+
+    deleteBy uniq = withReaderT unSqlFor $ do
+        conn <- ask
+        let sql' = sql conn
+            vals = persistUniqueToValues uniq
+        rawExecute sql' vals
+      where
+        t = entityDef $ dummyFromUnique uniq
+        go = map snd . persistUniqueToFieldNames
+        go' conn x = connEscapeName conn x `mappend` "=?"
+        sql conn =
+            Text.concat
+                [ "DELETE FROM "
+                , connEscapeName conn $ entityDB t
+                , " WHERE "
+                , Text.intercalate " AND " $ map (go' conn) $ go uniq]
+
+
+instance PersistUniqueRead (SqlFor a) where
+    getBy uniq = withReaderT unSqlFor $ do
+        conn <- ask
+        let sql =
+                Text.concat
+                    [ "SELECT "
+                    , Text.intercalate "," $ dbColumns conn t
+                    , " FROM "
+                    , connEscapeName conn $ entityDB t
+                    , " WHERE "
+                    , sqlClause conn]
+            uvals = persistUniqueToValues uniq
+        withRawQuery sql uvals $
+            do row <- CL.head
+               case row of
+                   Nothing -> return Nothing
+                   Just [] -> error "getBy: empty row"
+                   Just vals ->
+                       case parseEntityValues t vals of
+                           Left err ->
+                               liftIO $ throwIO $ PersistMarshalError err
+                           Right r -> return $ Just r
+      where
+        sqlClause conn =
+            Text.intercalate " AND " $ map (go conn) $ toFieldNames' uniq
+        go conn x = connEscapeName conn x `mappend` "=?"
+        t = entityDef $ dummyFromUnique uniq
+        toFieldNames' = map snd . persistUniqueToFieldNames
 
 -- Here be dragons! These are functions, types, and helpers that were vendored
--- from Persistent.
+-- from PersistenText.
 dummyFromKey :: Key record -> Maybe record
 dummyFromKey = Just . recordTypeFromKey
 
@@ -586,3 +662,22 @@ orderClause includeTable (SqlFor conn) o =
             else id)
         $ connEscapeName conn $ fieldName x
 
+defaultUpsert
+    :: (MonadIO m
+       ,PersistEntity record
+       ,PersistUniqueWrite backend
+       ,PersistEntityBackend record ~ BaseBackend backend)
+    => record -> [Update record] -> ReaderT backend m (Entity record)
+defaultUpsert record updates = do
+    uniqueKey <- onlyUnique record
+    upsertBy uniqueKey record updates
+
+dummyFromUnique :: Unique v -> Maybe v
+dummyFromUnique _ = Nothing
+
+escape :: DBName -> Text.Text
+escape (DBName s) = Text.pack $ '"' : escapeQuote (Text.unpack s) ++ "\""
+  where
+    escapeQuote ""       = ""
+    escapeQuote ('"':xs) = "\"\"" ++ escapeQuote xs
+    escapeQuote (x:xs)   = x : escapeQuote xs
