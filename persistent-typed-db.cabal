@@ -41,6 +41,8 @@ library
     , template-haskell
     , text
     , transformers
+    , monad-logger
+    , resourcet
   exposed-modules:
       Database.Persist.Typed
   default-language: Haskell2010
@@ -64,6 +66,8 @@ test-suite specs
     , template-haskell
     , text
     , transformers
+    , monad-logger
+    , resourcet
     , persistent-typed-db
     , hspec
   default-language: Haskell2010

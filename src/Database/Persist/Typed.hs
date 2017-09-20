@@ -13,6 +13,8 @@ module Database.Persist.Typed where
 import           Control.Exception
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Reader
+import           Control.Monad.Trans.Resource
+import           Control.Monad.Logger
 import           Data.Aeson                          as A
 import           Data.ByteString.Char8               (readInteger)
 import           Data.Coerce                         (coerce)
@@ -63,6 +65,10 @@ type SqlPersistTFor db = ReaderT (SqlFor db)
 -- | A 'Pool' of database connections that are specialized to a specific
 -- database.
 type ConnectionPoolFor db = Pool (SqlFor db)
+--
+-- | A specialization of 'SqlPersistM' that uses the underlying @db@ database
+-- type.
+type SqlPersistMFor db = ReaderT (SqlFor db) (NoLoggingT (ResourceT IO))
 
 -- | Specialize a query to a specific database. You should define aliases for
 -- this function for each database you use.

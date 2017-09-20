@@ -18,10 +18,12 @@ dependencies:
 - bytestring
 - conduit
 - http-api-data
+- monad-logger
 - path-pieces
 - persistent
 - persistent-template
 - resource-pool
+- resourcet
 - template-haskell
 - text
 - transformers
