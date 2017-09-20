@@ -21,6 +21,7 @@ dependencies:
 - path-pieces
 - persistent
 - persistent-template
+- resource-pool
 - template-haskell
 - text
 - transformers

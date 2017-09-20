@@ -15,16 +15,19 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Reader
 import           Data.Aeson                          as A
 import           Data.ByteString.Char8               (readInteger)
+import           Data.Coerce                         (coerce)
 import           Data.Conduit
 import qualified Data.Conduit.List                   as CL
 import           Data.Int
 import           Data.List                           (find, inits, transpose)
 import           Data.Maybe                          (isJust)
 import           Data.Monoid
+import           Data.Pool                           (Pool)
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
 import           Database.Persist
-import           Database.Persist.Sql
+import           Database.Persist.Sql                hiding (deleteWhereCount,
+                                                      updateWhereCount)
 import           Database.Persist.Sql.Types.Internal
 import           Database.Persist.Sql.Util           (dbColumns, dbIdColumns,
                                                       entityColumnNames,
@@ -44,6 +47,23 @@ newtype SqlFor a = SqlFor { unSqlFor :: SqlBackend }
 -- database.
 type AnySql = forall a. SqlFor a
 
+-- | This type signature represents a database query for a specific database.
+-- You will likely want to specialize this to your own application for
+-- readability:
+--
+-- @
+-- data MainDb
+--
+-- type MainQueryT = 'SqlPersistTFor' MainDb
+--
+-- getStuff :: 'MonadIO' m => StuffId -> MainQueryT m (Maybe Stuff)
+-- @
+type SqlPersistTFor db = ReaderT (SqlFor db)
+
+-- | A 'Pool' of database connections that are specialized to a specific
+-- database.
+type ConnectionPoolFor db = Pool (SqlFor db)
+
 -- | Specialize a query to a specific database. You should define aliases for
 -- this function for each database you use.
 --
@@ -58,8 +78,12 @@ type AnySql = forall a. SqlFor a
 -- accountQuery :: 'ReaderT' 'SqlBackend' m a -> 'ReaderT' ('SqlFor' AccountDb) m a
 -- accountQuery = 'specializeQuery'
 -- @
-specializeQuery :: ReaderT SqlBackend m a -> ReaderT (SqlFor db) m a
+specializeQuery :: SqlPersistT m a -> SqlPersistTFor db m a
 specializeQuery = withReaderT unSqlFor
+
+-- | Generalizes a query from a specific database
+generalizeQuery :: SqlPersistTFor db m a -> SqlPersistT m a
+generalizeQuery = withReaderT SqlFor
 
 -- | Use the 'SqlFor' type for the database connection backend.
 mkSqlSettingsFor :: Name -> MkPersistSettings
@@ -74,6 +98,18 @@ toSqlKey = fromBackendKey . SqlForKey . SqlBackendKey
 -- have to reimplement them here.
 fromSqlKey :: ToBackendKey (SqlFor a) record => Key record -> Int64
 fromSqlKey = unSqlBackendKey . toBackendKey
+
+-- | Specialize a 'ConnectionPool' to a @'Pool' ('SqlFor' db)@. You should apply
+-- this whenever you create or initialize the database connection pooling to
+-- avoid potentially mixing the database pools up.
+specializePool :: ConnectionPool -> ConnectionPoolFor db
+specializePool = coerce
+
+-- | Generalize a @'Pool' ('SqlFor' db)@ to an ordinary 'ConnectionPool'. This
+-- renders the pool unusable for model-specific code that relies on the type
+-- safety, but allows you to use it for general-purpose SQL queries.
+generalizePool :: ConnectionPoolFor db -> ConnectionPool
+generalizePool = coerce
 
 -- The following instances are almost entirely copy-pasted from the Persistent
 -- library for SqlBackend.
@@ -451,8 +487,73 @@ instance PersistUniqueRead (SqlFor a) where
         t = entityDef $ dummyFromUnique uniq
         toFieldNames' = map snd . persistUniqueToFieldNames
 
+instance PersistQueryWrite (SqlFor db) where
+    deleteWhere filts = do
+        _ <- deleteWhereCount filts
+        return ()
+    updateWhere filts upds = do
+        _ <- updateWhereCount filts upds
+        return ()
+    --
 -- Here be dragons! These are functions, types, and helpers that were vendored
--- from PersistenText.
+-- from Persistent.
+
+-- | Same as 'deleteWhere', but returns the number of rows affected.
+--
+--
+deleteWhereCount :: (PersistEntity val, MonadIO m, PersistEntityBackend val ~ SqlFor db)
+                 => [Filter val]
+                 -> ReaderT (SqlFor db) m Int64
+deleteWhereCount filts = withReaderT unSqlFor $ do
+    conn <- ask
+    let t = entityDef $ dummyFromFilts filts
+    let wher = if null filts
+                then ""
+                else filterClause False (SqlFor conn) filts
+        sql = mconcat
+            [ "DELETE FROM "
+            , connEscapeName conn $ entityDB t
+            , wher
+            ]
+    rawExecuteCount sql $ getFiltsValues (SqlFor conn) filts
+
+-- | Same as 'updateWhere', but returns the number of rows affected.
+--
+-- @since 1.1.5
+updateWhereCount :: (PersistEntity val, MonadIO m, SqlFor db ~ PersistEntityBackend val)
+                 => [Filter val]
+                 -> [Update val]
+                 -> ReaderT (SqlFor db) m Int64
+updateWhereCount _ [] = return 0
+updateWhereCount filts upds = withReaderT unSqlFor $ do
+    conn <- ask
+    let wher = if null filts
+                then ""
+                else filterClause False (SqlFor conn) filts
+    let sql = mconcat
+            [ "UPDATE "
+            , connEscapeName conn $ entityDB t
+            , " SET "
+            , Text.intercalate "," $ map (go' conn . go) upds
+            , wher
+            ]
+    let dat = map updatePersistValue upds `Data.Monoid.mappend`
+              getFiltsValues (SqlFor conn) filts
+    rawExecuteCount sql dat
+  where
+    t = entityDef $ dummyFromFilts filts
+    go'' n Assign = n <> "=?"
+    go'' n Add = mconcat [n, "=", n, "+?"]
+    go'' n Subtract = mconcat [n, "=", n, "-?"]
+    go'' n Multiply = mconcat [n, "=", n, "*?"]
+    go'' n Divide = mconcat [n, "=", n, "/?"]
+    go'' _ (BackendSpecificUpdate up) = error $ Text.unpack $ "BackendSpecificUpdate" `mappend` up `mappend` "not supported"
+    go' conn (x, pu) = go'' (connEscapeName conn x) pu
+    go x = (updateField x, updateUpdate x)
+
+    updateField (Update f _ _) = fieldName f
+    updateField _              = error "BackendUpdate not implemented"
+
 dummyFromKey :: Key record -> Maybe record
 dummyFromKey = Just . recordTypeFromKey
 
