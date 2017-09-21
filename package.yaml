@@ -7,7 +7,7 @@ author: Matt Parsons
 maintainer: parsonsmatt@gmail.com
 copyright: 2017 Matt Parsons
 license: BSD3
-github: githubuser/persistent-typed-db
+github: parsonsmatt/persistent-typed-db
 extra-source-files:
 - README.md
 - CHANGELOG.md

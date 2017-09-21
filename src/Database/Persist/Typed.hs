@@ -103,7 +103,7 @@ toSqlKey = fromBackendKey . SqlForKey . SqlBackendKey
 -- | Persistent's @toSqlKey@ and @fromSqlKey@ hardcode the 'SqlBackend', so we
 -- have to reimplement them here.
 fromSqlKey :: ToBackendKey (SqlFor a) record => Key record -> Int64
-fromSqlKey = unSqlBackendKey . toBackendKey
+fromSqlKey = unSqlBackendKey . unSqlForKey . toBackendKey
 
 -- | Specialize a 'ConnectionPool' to a @'Pool' ('SqlFor' db)@. You should apply
 -- this whenever you create or initialize the database connection pooling to

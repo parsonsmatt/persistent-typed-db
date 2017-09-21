@@ -34,15 +34,15 @@ library
     , bytestring
     , conduit
     , http-api-data
+    , monad-logger
     , path-pieces
     , persistent
     , persistent-template
     , resource-pool
+    , resourcet
     , template-haskell
     , text
     , transformers
-    , monad-logger
-    , resourcet
   exposed-modules:
       Database.Persist.Typed
   default-language: Haskell2010
@@ -59,15 +59,15 @@ test-suite specs
     , bytestring
     , conduit
     , http-api-data
+    , monad-logger
     , path-pieces
     , persistent
     , persistent-template
     , resource-pool
+    , resourcet
     , template-haskell
     , text
     , transformers
-    , monad-logger
-    , resourcet
     , persistent-typed-db
     , hspec
   default-language: Haskell2010
