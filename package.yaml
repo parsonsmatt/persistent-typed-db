@@ -20,7 +20,7 @@ dependencies:
 - http-api-data
 - monad-logger
 - path-pieces
-- persistent
+- persistent          >= 2.7.1
 - persistent-template
 - resource-pool
 - resourcet

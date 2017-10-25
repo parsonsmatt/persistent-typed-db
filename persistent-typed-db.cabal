@@ -6,8 +6,8 @@ name:                persistent-typed-db
 version:             0.0.1.0
 synopsis:            Type safe access to multiple databases.
 description:         See README.md for more details.
-homepage:            https://github.com/githubuser/persistent-typed-db#readme
-bug-reports:         https://github.com/githubuser/persistent-typed-db/issues
+homepage:            https://github.com/parsonsmatt/persistent-typed-db#readme
+bug-reports:         https://github.com/parsonsmatt/persistent-typed-db/issues
 license:             BSD3
 license-file:        LICENSE
 author:              Matt Parsons
@@ -23,7 +23,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/persistent-typed-db
+  location: https://github.com/parsonsmatt/persistent-typed-db
 
 library
   hs-source-dirs:
@@ -36,7 +36,7 @@ library
     , http-api-data
     , monad-logger
     , path-pieces
-    , persistent
+    , persistent          >= 2.7.1
     , persistent-template
     , resource-pool
     , resourcet
@@ -61,7 +61,7 @@ test-suite specs
     , http-api-data
     , monad-logger
     , path-pieces
-    , persistent
+    , persistent          >= 2.7.1
     , persistent-template
     , resource-pool
     , resourcet

@@ -31,6 +31,7 @@ import           Database.Persist
 import           Database.Persist.Sql                hiding (deleteWhereCount,
                                                       updateWhereCount)
 import           Database.Persist.Sql.Types.Internal
+import           Database.Persist.Types
 import           Database.Persist.Sql.Util           (dbColumns, dbIdColumns,
                                                       entityColumnNames,
                                                       isIdField,
@@ -43,11 +44,14 @@ import           Web.PathPieces
 
 -- | A wrapper around 'SqlBackend' type. To specialize this to a specific
 -- database, fill in the type parameter.
-newtype SqlFor a = SqlFor { unSqlFor :: SqlBackend }
+newtype SqlFor db = SqlFor { unSqlFor :: SqlBackend }
+
+instance BackendCompatible SqlBackend (SqlFor db) where
+    projectBackend = unSqlFor
 
 -- | 'AnySql' refers to general SQL queries that can be used across any
 -- database.
-type AnySql = forall a. SqlFor a
+type AnySql = forall db. SqlFor db
 
 -- | This type signature represents a database query for a specific database.
 -- You will likely want to specialize this to your own application for
@@ -97,13 +101,13 @@ mkSqlSettingsFor n = mkPersistSettings (AppT (ConT ''SqlFor) (ConT n))
 
 -- | Persistent's @toSqlKey@ and @fromSqlKey@ hardcode the 'SqlBackend', so we
 -- have to reimplement them here.
-toSqlKey :: (ToBackendKey (SqlFor a) record) => Int64 -> Key record
-toSqlKey = fromBackendKey . SqlForKey . SqlBackendKey
+toSqlKeyFor :: (ToBackendKey (SqlFor a) record) => Int64 -> Key record
+toSqlKeyFor = fromBackendKey . SqlForKey . SqlBackendKey
 
 -- | Persistent's @toSqlKey@ and @fromSqlKey@ hardcode the 'SqlBackend', so we
 -- have to reimplement them here.
-fromSqlKey :: ToBackendKey (SqlFor a) record => Key record -> Int64
-fromSqlKey = unSqlBackendKey . unSqlForKey . toBackendKey
+fromSqlKeyFor :: ToBackendKey (SqlFor a) record => Key record -> Int64
+fromSqlKeyFor = unSqlBackendKey . unSqlForKey . toBackendKey
 
 -- | Specialize a 'ConnectionPool' to a @'Pool' ('SqlFor' db)@. You should apply
 -- this whenever you create or initialize the database connection pooling to
