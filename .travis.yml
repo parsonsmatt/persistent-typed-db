@@ -180,6 +180,7 @@ script:
     stack)
       stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
       ;;
+      ./README.lhs
     cabal)
       cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS $PACKAGES
 
@@ -196,4 +197,3 @@ script:
       ;;
   esac
   set +ex
-- ./README.lhs
