@@ -37,11 +37,34 @@ resolver: lts-9.4
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - .
+- location: ../esqueleto
+  # git: https://github.com/parsonsmatt/esqueleto
+  #  commit: 7808bc982cd09530d2128c601f8e98156b756905
+
+  extra-dep: true
+- location:
+    git: https://github.com/yesodweb/persistent
+    commit: 4d0a6f3a4abde46c82691414e0e283a933a39f3e
+  subdirs:
+    - persistent
+    - persistent-template
+  extra-dep: true
+- location:
+    git: https://github.com/snoyberg/conduit
+    commit: 7f75bfca8d479e1737861a75437a288af662a3cf
+  extra-dep: true
+  subdirs:
+    - conduit
+    - conduit-extra
+    - resourcet
+
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-  - persistent-2.7.1
-
+  - monad-logger-0.3.28
+  - mono-traversable-1.0.8.1
+  - typed-process-0.2.1.0
+    #
 # Override default flag values for local packages and extra-deps
 flags: {}
 
