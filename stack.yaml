@@ -37,10 +37,9 @@ resolver: lts-9.4
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - .
-- location: ../esqueleto
-  # git: https://github.com/parsonsmatt/esqueleto
-  #  commit: 7808bc982cd09530d2128c601f8e98156b756905
-
+- location:
+    git: https://github.com/parsonsmatt/esqueleto
+    commit: e53f087d217c57994b01b648e11dab45ff1b797b
   extra-dep: true
 - location:
     git: https://github.com/yesodweb/persistent
