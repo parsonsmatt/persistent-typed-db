@@ -352,7 +352,7 @@ instance PersistQueryRead (SqlFor a) where
     selectSourceRes filts opts = specializeQuery $ do
         conn <- ask
         srcRes <- rawQueryRes (sql conn) (getFiltsValues (SqlFor conn) filts)
-        return $ fmap ($= CL.mapM parse) srcRes
+        return $ fmap (.| CL.mapM parse) srcRes
       where
         (limit, offset, orders) = limitOffsetOrder opts
 
@@ -380,7 +380,7 @@ instance PersistQueryRead (SqlFor a) where
     selectKeysRes filts opts = specializeQuery $ do
         conn <- ask
         srcRes <- rawQueryRes (sql conn) (getFiltsValues (SqlFor conn) filts)
-        return $ fmap ($= CL.mapM parse) srcRes
+        return $ fmap (.| CL.mapM parse) srcRes
       where
         t = entityDef $ dummyFromFilts filts
         cols conn = Text.intercalate "," $ dbIdColumns conn t
