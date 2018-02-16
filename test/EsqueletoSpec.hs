@@ -32,6 +32,9 @@ Dog
     owner PersonId
     deriving Show Eq
 
+Foo
+    Id sql=other_id
+    other_id Int
     |]
 
 spec :: Spec
@@ -58,4 +61,9 @@ spec = do
         it "type checks" $ do
             let q :: SqlPersistMFor TestDb ()
                 q = delete $ from $ \p -> where_ (p ^. PersonName ==. val "world")
+            typeChecks
+
+    describe "issue #2" $ do
+        it "type checks" $ do
+            let k = toSqlKeyFor 3 :: Key Foo
             typeChecks
