@@ -1,8 +1,10 @@
--- This file has been generated from package.yaml by hpack version 0.20.0.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1733fec19beb421d21c79b9cfa7ead0d3ae7d3e0cabd44e9d67b76dc7273c7ec
+-- hash: d593ed07ca8a58da469281c0a5a9cb106663577f523563a85e4d9f506d1abb35
 
 name:           persistent-typed-db
 version:        0.0.1.0
@@ -17,11 +19,9 @@ copyright:      2017 Matt Parsons
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
-cabal-version:  >= 1.10
-
 extra-source-files:
-    CHANGELOG.md
     README.md
+    CHANGELOG.md
 
 source-repository head
   type: git
