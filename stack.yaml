@@ -1,4 +1,7 @@
-resolver: lts-13.12
+resolver: lts-12.26
 
 packages:
 - .
+
+extra-deps:
+  - esqueleto-2.7.0@sha256:4cbb7136ec67d7cedd0439dd6932bb091c346ab27ed3fdf659228b73fb619896
