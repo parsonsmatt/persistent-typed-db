@@ -4,12 +4,12 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d593ed07ca8a58da469281c0a5a9cb106663577f523563a85e4d9f506d1abb35
+-- hash: e48de0abbd22b8c9e0ecb890a9739fa210a204fa9fd24bab3a30571dbedf3b16
 
 name:           persistent-typed-db
 version:        0.0.1.0
 synopsis:       Type safe access to multiple databases.
-description:    See README.md for more details.
+description:    See README.md for more details, examples, and fun.
 category:       Web
 homepage:       https://github.com/parsonsmatt/persistent-typed-db#readme
 bug-reports:    https://github.com/parsonsmatt/persistent-typed-db/issues
