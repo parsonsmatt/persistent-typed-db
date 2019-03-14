@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/parsonsmatt/persistent-typed-db.svg?branch=master)](https://travis-ci.org/parsonsmatt/persistent-typed-db)
 
-This library defines an alternate `SqlBackend` type for the Haskell [persistent][https://hackage.haskell.org/package/persistent] database library.
+This library defines an alternate `SqlBackend` type for the Haskell [persistent](https://hackage.haskell.org/package/persistent) database library.
 The type has a phantom type parameter which allows you to write queries against multiple databases safely.
 
 # The Problem

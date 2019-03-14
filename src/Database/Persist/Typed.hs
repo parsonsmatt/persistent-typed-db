@@ -8,39 +8,61 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 
-module Database.Persist.Typed where
+module Database.Persist.Typed
+    ( -- * Schema Definition
+      mkSqlSettingsFor
+    , SqlFor(..)
+      -- * Specialized aliases
+    , SqlPersistTFor
+    , ConnectionPoolFor
+    , SqlPersistMFor
+      -- * Running specialized queries
+    , runSqlPoolFor
+    , runSqlConnFor
+      -- * Specializing and generalizing
+    , generalizePool
+    , specializePool
+    , generalizeQuery
+    , specializeQuery
+    , generalizeSqlBackend
+    , specializeSqlBackend
+      -- * Key functions
+    , toSqlKeyFor
+    , fromSqlKeyFor
+    ) where
 
-import           Control.Exception
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Reader
-import           Control.Monad.Trans.Resource
-import           Control.Monad.Logger
+import           Control.Exception                   hiding (throw)
+import           Control.Monad.IO.Class              (MonadIO (..))
+import           Control.Monad.Logger                (NoLoggingT)
+import           Control.Monad.Trans.Reader          (ReaderT (..), ask, asks,
+                                                      withReaderT)
+import           Control.Monad.Trans.Resource        (MonadUnliftIO, ResourceT)
 import           Data.Aeson                          as A
 import           Data.ByteString.Char8               (readInteger)
 import           Data.Coerce                         (coerce)
-import           Data.Conduit
+import           Data.Conduit                        ((.|))
 import qualified Data.Conduit.List                   as CL
-import           Data.Int
+import           Data.Int                            (Int64)
 import           Data.List                           (find, inits, transpose)
 import           Data.Maybe                          (isJust)
-import           Data.Monoid
+import           Data.Monoid                         (mappend)
 import           Data.Pool                           (Pool)
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
-import           Database.Persist
 import           Database.Persist.Sql                hiding (deleteWhereCount,
                                                       updateWhereCount)
-import           Database.Persist.Sql.Types.Internal
-import           Database.Persist.Types
+import           Database.Persist.Sql.Types.Internal (IsPersistBackend (..))
 import           Database.Persist.Sql.Util           (dbColumns, dbIdColumns,
                                                       entityColumnNames,
                                                       isIdField,
                                                       keyAndEntityColumnNames,
                                                       parseEntityValues)
-import           Database.Persist.TH
-import           Language.Haskell.TH
-import           Web.HttpApiData
-import           Web.PathPieces
+import           Database.Persist.TH                 (MkPersistSettings,
+                                                      mkPersistSettings)
+import           Language.Haskell.TH                 (Name, Type (..))
+import           Web.HttpApiData                     (FromHttpApiData,
+                                                      ToHttpApiData)
+import           Web.PathPieces                      (PathPiece)
 
 -- | A wrapper around 'SqlBackend' type. To specialize this to a specific
 -- database, fill in the type parameter.
@@ -50,12 +72,6 @@ newtype SqlFor db = SqlFor { unSqlFor :: SqlBackend }
 
 instance BackendCompatible SqlBackend (SqlFor db) where
     projectBackend = unSqlFor
-
--- | 'AnySql' refers to general SQL queries that can be used across any
--- database.
---
--- @since 0.0.1.0
-type AnySql = forall db. SqlFor db
 
 -- | This type signature represents a database query for a specific database.
 -- You will likely want to specialize this to your own application for
@@ -110,7 +126,25 @@ specializeQuery = withReaderT unSqlFor
 generalizeQuery :: forall db m a. SqlPersistTFor db m a -> SqlPersistT m a
 generalizeQuery = withReaderT SqlFor
 
--- | Use the 'SqlFor' type for the database connection backend.
+-- | Use the 'SqlFor' type for the database connection backend. Use this instead
+-- of 'sqlSettings' and provide a quoted type name.
+--
+-- @
+-- data MainDb
+--
+-- share [ mkPersist (mkSqlSettingsFor ''MainDb), mkMigrate "migrateAll" ] [persistLowerCase|
+--
+-- User
+--     name Text
+--     age  Int
+--
+--     deriving Show Eq
+-- |]
+-- @
+--
+-- The entities generated will have the 'PersistEntityBackend' defined to be
+-- @'SqlFor' MainDb@ instead of 'SqlBackend'. This is what provides the type
+-- safety.
 --
 -- @since 0.0.1.0
 mkSqlSettingsFor :: Name -> MkPersistSettings
@@ -168,6 +202,17 @@ runSqlPoolFor
     -> m a
 runSqlPoolFor query conn =
     runSqlPool (generalizeQuery query) (generalizePool conn)
+
+-- | Run a 'SqlPersistTFor' action on the appropriate database connection.
+--
+-- @since 0.0.1.0
+runSqlConnFor
+    :: MonadUnliftIO m
+    => SqlPersistTFor db m a
+    -> SqlFor db
+    -> m a
+runSqlConnFor query conn =
+    runSqlConn (generalizeQuery query) (generalizeSqlBackend conn)
 
 -- The following instances are almost entirely copy-pasted from the Persistent
 -- library for SqlBackend.
@@ -607,10 +652,10 @@ updateWhereCount filts upds = withReaderT unSqlFor $ do
     go'' n Divide = mconcat [n, "=", n, "/?"]
     go'' _ (BackendSpecificUpdate up) = error $ Text.unpack $ "BackendSpecificUpdate" `mappend` up `mappend` "not supported"
     go' conn (x, pu) = go'' (connEscapeName conn x) pu
-    go x = (updateField x, updateUpdate x)
+    go x = (updateField' x, updateUpdate x)
 
-    updateField (Update f _ _) = fieldName f
-    updateField _              = error "BackendUpdate not implemented"
+    updateField' (Update f _ _) = fieldName f
+    updateField' _              = error "BackendUpdate not implemented"
 
 dummyFromKey :: Key record -> Maybe record
 dummyFromKey = Just . recordTypeFromKey

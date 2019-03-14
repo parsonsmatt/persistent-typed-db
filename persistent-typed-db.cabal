@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fd9d92ec5f8a01bac0bcc76ee76438c015ef6fcc829d75eb1bfea269e535b115
+-- hash: 9ca3677808b2b77f7610f921cfb79cefbfe8d610360376b7b23b481af479b127
 
 name:           persistent-typed-db
 version:        0.0.1.0
@@ -30,6 +30,7 @@ source-repository head
 library
   hs-source-dirs:
       src
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wcompat -Wincomplete-uni-patterns
   build-depends:
       aeson
     , base >=4.7 && <5

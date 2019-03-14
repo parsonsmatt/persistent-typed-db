@@ -30,6 +30,7 @@ dependencies:
 
 library:
   source-dirs: src
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wcompat -Wincomplete-uni-patterns
 
 tests:
   specs:
