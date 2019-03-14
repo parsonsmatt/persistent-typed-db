@@ -8,6 +8,8 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 
+-- | This module defines types and helpers for type-safe access to multiple
+-- database schema.
 module Database.Persist.Typed
     ( -- * Schema Definition
       mkSqlSettingsFor
