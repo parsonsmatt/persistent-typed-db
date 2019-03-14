@@ -44,6 +44,8 @@ import           Web.PathPieces
 
 -- | A wrapper around 'SqlBackend' type. To specialize this to a specific
 -- database, fill in the type parameter.
+--
+-- @since 0.0.1.0
 newtype SqlFor db = SqlFor { unSqlFor :: SqlBackend }
 
 instance BackendCompatible SqlBackend (SqlFor db) where
@@ -51,6 +53,8 @@ instance BackendCompatible SqlBackend (SqlFor db) where
 
 -- | 'AnySql' refers to general SQL queries that can be used across any
 -- database.
+--
+-- @since 0.0.1.0
 type AnySql = forall db. SqlFor db
 
 -- | This type signature represents a database query for a specific database.
@@ -64,14 +68,20 @@ type AnySql = forall db. SqlFor db
 --
 -- getStuff :: 'MonadIO' m => StuffId -> MainQueryT m (Maybe Stuff)
 -- @
+--
+-- @since 0.0.1.0
 type SqlPersistTFor db = ReaderT (SqlFor db)
 
 -- | A 'Pool' of database connections that are specialized to a specific
 -- database.
+--
+-- @since 0.0.1.0
 type ConnectionPoolFor db = Pool (SqlFor db)
 --
 -- | A specialization of 'SqlPersistM' that uses the underlying @db@ database
 -- type.
+--
+-- @since 0.0.1.0
 type SqlPersistMFor db = ReaderT (SqlFor db) (NoLoggingT (ResourceT IO))
 
 -- | Specialize a query to a specific database. You should define aliases for
@@ -88,38 +98,76 @@ type SqlPersistMFor db = ReaderT (SqlFor db) (NoLoggingT (ResourceT IO))
 -- accountQuery :: 'ReaderT' 'SqlBackend' m a -> 'ReaderT' ('SqlFor' AccountDb) m a
 -- accountQuery = 'specializeQuery'
 -- @
-specializeQuery :: SqlPersistT m a -> SqlPersistTFor db m a
+--
+-- @since 0.0.1.0
+specializeQuery :: forall db m a. SqlPersistT m a -> SqlPersistTFor db m a
 specializeQuery = withReaderT unSqlFor
 
--- | Generalizes a query from a specific database
-generalizeQuery :: SqlPersistTFor db m a -> SqlPersistT m a
+-- | Generalizes a query from a specific database to one that is database
+-- agnostic.
+--
+-- @since 0.0.1.0
+generalizeQuery :: forall db m a. SqlPersistTFor db m a -> SqlPersistT m a
 generalizeQuery = withReaderT SqlFor
 
 -- | Use the 'SqlFor' type for the database connection backend.
+--
+-- @since 0.0.1.0
 mkSqlSettingsFor :: Name -> MkPersistSettings
 mkSqlSettingsFor n = mkPersistSettings (AppT (ConT ''SqlFor) (ConT n))
 
 -- | Persistent's @toSqlKey@ and @fromSqlKey@ hardcode the 'SqlBackend', so we
 -- have to reimplement them here.
+--
+-- @since 0.0.1.0
 toSqlKeyFor :: (ToBackendKey (SqlFor a) record) => Int64 -> Key record
 toSqlKeyFor = fromBackendKey . SqlForKey . SqlBackendKey
 
 -- | Persistent's @toSqlKey@ and @fromSqlKey@ hardcode the 'SqlBackend', so we
 -- have to reimplement them here.
+--
+-- @since 0.0.1.0
 fromSqlKeyFor :: ToBackendKey (SqlFor a) record => Key record -> Int64
 fromSqlKeyFor = unSqlBackendKey . unSqlForKey . toBackendKey
 
 -- | Specialize a 'ConnectionPool' to a @'Pool' ('SqlFor' db)@. You should apply
 -- this whenever you create or initialize the database connection pooling to
 -- avoid potentially mixing the database pools up.
+--
+-- @since 0.0.1.0
 specializePool :: ConnectionPool -> ConnectionPoolFor db
 specializePool = coerce
 
 -- | Generalize a @'Pool' ('SqlFor' db)@ to an ordinary 'ConnectionPool'. This
 -- renders the pool unusable for model-specific code that relies on the type
 -- safety, but allows you to use it for general-purpose SQL queries.
+--
+-- @since 0.0.1.0
 generalizePool :: ConnectionPoolFor db -> ConnectionPool
 generalizePool = coerce
+
+-- | Specializes a 'SqlBackend' for a specific database.
+--
+-- @since 0.0.1.0
+specializeSqlBackend :: SqlBackend -> SqlFor db
+specializeSqlBackend = SqlFor
+
+-- | Generalizes a 'SqlFor' backend to be database agnostic.
+--
+-- @since 0.0.1.0
+generalizeSqlBackend :: SqlFor db -> SqlBackend
+generalizeSqlBackend = unSqlFor
+
+-- | Run a 'SqlPersistTFor' action on an appropriate database.
+--
+-- @since 0.0.1.0
+runSqlPoolFor
+    :: MonadUnliftIO m
+    => SqlPersistTFor db m a
+    -> ConnectionPoolFor db
+    -> m a
+runSqlPoolFor query conn =
+    runSqlPool (generalizeQuery query) (generalizePool conn)
 
 -- The following instances are almost entirely copy-pasted from the Persistent
 -- library for SqlBackend.
