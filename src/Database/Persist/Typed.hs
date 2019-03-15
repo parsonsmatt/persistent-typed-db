@@ -47,7 +47,7 @@ import qualified Data.Conduit.List                   as CL
 import           Data.Int                            (Int64)
 import           Data.List                           (find, inits, transpose)
 import           Data.Maybe                          (isJust)
-import           Data.Monoid                         (mappend)
+import           Data.Monoid                         (mappend, (<>))
 import           Data.Pool                           (Pool)
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
