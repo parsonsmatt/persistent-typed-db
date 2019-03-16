@@ -51,8 +51,10 @@ import           Data.Monoid                         (mappend, (<>))
 import           Data.Pool                           (Pool)
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
+import qualified Data.Text                           as T
 import           Database.Persist.Sql                hiding (deleteWhereCount,
                                                       updateWhereCount)
+import qualified Data.Foldable as Foldable
 import           Database.Persist.Sql.Types.Internal (IsPersistBackend (..))
 import           Database.Persist.Sql.Util           (dbColumns, dbIdColumns,
                                                       entityColumnNames,
@@ -352,6 +354,13 @@ instance PersistStoreWrite (SqlFor a) where
                     ent = entityDef vals
                     valss = map (map toPersistValue . toPersistFields) vals
 
+    insertEntityMany es' = specializeQuery $ do
+        conn <- ask
+        let entDef = entityDef $ map entityVal es'
+        let columnNames = keyAndEntityColumnNames entDef conn
+        runChunked (length columnNames) go es'
+      where
+        go = insrepHelper "INSERT"
 
 
     insertMany_ [] = return ()
@@ -378,9 +387,6 @@ instance PersistStoreWrite (SqlFor a) where
           rawExecute sql (concat valss)
 
         t = entityDef vals0
-        -- Implement this here to avoid depending on the split package
-        chunksOf _ [] = []
-        chunksOf size xs = let (chunk, rest) = splitAt size xs in chunk : chunksOf size rest
 
     replace k val = do
         conn <- asks unSqlFor
@@ -399,7 +405,7 @@ instance PersistStoreWrite (SqlFor a) where
       where
         go conn x = connEscapeName conn x `Text.append` "=?"
 
-    insertKey k = specializeQuery . insrepHelper "INSERT" k
+    insertKey k v = specializeQuery $ insrepHelper "INSERT" [Entity k v]
 
     repsert key value = do
         mExisting <- get key
@@ -676,26 +682,26 @@ whereStmtForKey conn k =
 
 insrepHelper :: (MonadIO m, PersistEntity val)
              => Text
-             -> Key val
-             -> val
+             -> [Entity val]
              -> ReaderT SqlBackend m ()
-insrepHelper command k record = do
+insrepHelper _       []  = return ()
+insrepHelper command es = do
     conn <- ask
     let columnNames = keyAndEntityColumnNames entDef conn
     rawExecute (sql conn columnNames) vals
   where
-    entDef = entityDef $ Just record
-    sql conn columnNames = Text.concat
+    entDef = entityDef $ map entityVal es
+    sql conn columnNames = T.concat
         [ command
         , " INTO "
         , connEscapeName conn (entityDB entDef)
         , "("
-        , Text.intercalate "," columnNames
-        , ") VALUES("
-        , Text.intercalate "," (map (const "?") columnNames)
+        , T.intercalate "," columnNames
+        , ") VALUES ("
+        , T.intercalate "),(" $ replicate (length es) $ T.intercalate "," $ map (const "?") columnNames
         , ")"
         ]
-    vals = entityValues (Entity k record)
+    vals = Foldable.foldMap entityValues es
 
 updateFieldDef :: PersistEntity v => Update v -> FieldDef
 updateFieldDef (Update f _ _) =
@@ -925,3 +931,23 @@ escape (DBName s) = Text.pack $ '"' : escapeQuote (Text.unpack s) ++ "\""
     escapeQuote ""       = ""
     escapeQuote ('"':xs) = "\"\"" ++ escapeQuote xs
     escapeQuote (x:xs)   = x : escapeQuote xs
+
+runChunked
+    :: (Monad m)
+    => Int
+    -> ([a] -> ReaderT SqlBackend m ())
+    -> [a]
+    -> ReaderT SqlBackend m ()
+runChunked _ _ []     = return ()
+runChunked width m xs = do
+    conn <- ask
+    case connMaxParams conn of
+        Nothing -> m xs
+        Just maxParams -> let chunkSize = maxParams `div` width in
+            mapM_ m (chunksOf chunkSize xs)
+
+-- Implement this here to avoid depending on the split package
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf _ [] = []
+chunksOf size xs = let (chunk, rest) = splitAt size xs in chunk : chunksOf size rest
+
