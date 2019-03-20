@@ -135,21 +135,21 @@ AuxRecord
 ```
 
 This changes the type of the `PersistEntityBackend record` for each entity defined in the QuasiQuoter.
-The previous type of `PersistEntityBackend User` was `SqlBackend`, but with this change, it is now `SqlBackendFor MainDb`.
-Likewise, the type of `PersistEntityBackend AuxRecord` has become `SqlBackendFor AuxDb`.
+The previous type of `PersistEntityBackend User` was `SqlBackend`, but with this change, it is now `SqlFor MainDb`.
+Likewise, the type of `PersistEntityBackend AuxRecord` has become `SqlFor AuxDb`.
 
 ## Using the Schema
 
 Let's look at the new type of `get` for these two records:
 
 ```haskell
-get :: (MonadIO m, PersistEntityBackend User ~ SqlBackendFor MainDb)
+get :: (MonadIO m, PersistEntityBackend User ~ SqlFor MainDb)
     => Key record
-    -> ReaderT (SqlBackendFor MainDb) m (Maybe User)
+    -> ReaderT (SqlFor MainDb) m (Maybe User)
 
-get :: (MonadIO m, PersistEntityBackend AuxRecord ~ SqlBackendFor AuxDb)
+get :: (MonadIO m, PersistEntityBackend AuxRecord ~ SqlFor AuxDb)
     => Key record
-    -> ReaderT (SqlBackendFor AuxDb) m (Maybe AuxRecord)
+    -> ReaderT (SqlFor AuxDb) m (Maybe AuxRecord)
 ```
 
 Now that the monad type is different, we can't use them in the same query.
@@ -160,7 +160,7 @@ It is similar to the `SqlPersistT` synonym:
 
 ```haskell
 type SqlPersistT       = ReaderT SqlBackend
-type SqlPersistTFor db = ReaderT (SqlBackendFor db)
+type SqlPersistTFor db = ReaderT (SqlFor db)
 ```
 
 When using this library, it is a good idea to define a type snynonym for your databases as well.
