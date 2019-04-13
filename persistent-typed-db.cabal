@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3ae9dc27e1c8f46a8a8113bb14311522ef631291dc5ae951b1f8082a83789c00
+-- hash: 13035f38c6a20d1aee4b5221bf6a76a86992a9aa8b015559769254324aeecd16
 
 name:           persistent-typed-db
-version:        0.0.1.1
+version:        0.1.0.0
 synopsis:       Type safe access to multiple database schemata.
 description:    See README.md for more details, examples, and fun.
 category:       Web
@@ -43,8 +43,8 @@ library
     , http-api-data
     , monad-logger
     , path-pieces
-    , persistent >=2.8.0
-    , persistent-template
+    , persistent >=2.10.0
+    , persistent-template >=2.7.0
     , resource-pool
     , resourcet >=1.2.0
     , template-haskell
