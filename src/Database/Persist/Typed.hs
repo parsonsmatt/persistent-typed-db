@@ -530,7 +530,7 @@ instance PersistUniqueWrite (SqlFor db) where
                             [] -> withReaderT SqlFor $ defaultUpsert record updates
                             _:_ -> do
                                 let upds = Text.intercalate "," $ map (go' . go) updates
-                                    sql = upsertSql t upds
+                                    sql = upsertSql t (pure (onlyOneUniqueDef (Just record))) upds
                                     vals = map toPersistValue (toPersistFields record)
                                         ++ map updatePersistValue updates
                                         ++ unqs uniqueKey
@@ -955,3 +955,15 @@ chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
 chunksOf size xs = let (chunk, rest) = splitAt size xs in chunk : chunksOf size rest
 
+-- | Given a proxy for a 'PersistEntity' record, this returns the sole
+-- 'UniqueDef' for that entity.
+--
+-- @since 2.10.0
+onlyOneUniqueDef
+    :: (OnlyOneUniqueKey record, Monad proxy)
+    => proxy record
+    -> UniqueDef
+onlyOneUniqueDef prxy =
+    case entityUniques (entityDef prxy) of
+        [uniq] -> uniq
+        _ -> error "impossible due to OnlyOneUniqueKey constraint"

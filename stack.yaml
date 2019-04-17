@@ -4,8 +4,6 @@ packages:
 - .
 
 extra-deps:
-- git: https://github.com/Vlix/persistent
-  commit: a52af69dfd559982e1f5e764a79a34b753d1e6df
-  subdirs:
-    - persistent/
-    - persistent-template/
+- persistent-2.10.0
+- persistent-template-2.7.0
+- esqueleto-2.7.0
