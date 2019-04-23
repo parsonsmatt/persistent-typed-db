@@ -2,8 +2,8 @@ resolver: lts-13.6
 
 packages:
 - .
-
 extra-deps:
+- git: https://github.com/bitemyapp/esqueleto
+  commit: 7b7717b05a951ede162f54c625f92e46c7c78838
 - persistent-2.10.0
 - persistent-template-2.7.0
-- esqueleto-2.7.0
