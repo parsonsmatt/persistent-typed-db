@@ -10,13 +10,14 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module EsqueletoSpec where
 
-import Database.Persist.Typed
-import Database.Esqueleto
-import Database.Persist.TH
-import Test.Hspec
+import           Database.Esqueleto
+import           Database.Persist.TH
+import           Database.Persist.Typed
+import           Test.Hspec
 
 data TestDb
 

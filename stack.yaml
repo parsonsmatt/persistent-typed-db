@@ -1,7 +1,9 @@
-resolver: lts-12.26
+resolver: lts-13.6
 
 packages:
 - .
-
 extra-deps:
-  - esqueleto-2.7.0@sha256:4cbb7136ec67d7cedd0439dd6932bb091c346ab27ed3fdf659228b73fb619896
+- git: https://github.com/bitemyapp/esqueleto
+  commit: 7b7717b05a951ede162f54c625f92e46c7c78838
+- persistent-2.10.0
+- persistent-template-2.7.0
