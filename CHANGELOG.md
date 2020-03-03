@@ -1,5 +1,9 @@
 # CHANGELOG
 
+# 0.1.0.1
+
+- Fix test suite to build for stackage
+
 # v0.1.0.0
 
 - Add support for `persistent` v2.10.0 and `persistent-template` 2.7.0
