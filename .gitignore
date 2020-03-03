@@ -4,4 +4,3 @@ dist/
 cabal.sandbox.config
 .stack-work/
 tarballs/
-persistent-typed-db.cabal
