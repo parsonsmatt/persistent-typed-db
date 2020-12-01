@@ -1,4 +1,8 @@
-resolver: lts-15.2
+resolver: nightly-2020-11-28
 
 packages:
 - .
+
+extra-deps:
+  - persistent-2.11.0.0
+  - persistent-template-2.9.1.0

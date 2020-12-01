@@ -1,6 +1,6 @@
 cabal-version: 1.12
 name:           persistent-typed-db
-version:        0.1.0.1
+version:        0.1.0.2
 synopsis:       Type safe access to multiple database schemata.
 description:    See README.md for more details, examples, and fun.
 category:       Web
@@ -36,7 +36,7 @@ library
     , http-api-data
     , monad-logger
     , path-pieces
-    , persistent >=2.10.0
+    , persistent >=2.11.0 && < 2.12
     , persistent-template >=2.7.0
     , resource-pool
     , resourcet >=1.2.0

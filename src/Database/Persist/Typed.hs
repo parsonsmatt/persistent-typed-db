@@ -44,29 +44,27 @@ import           Data.ByteString.Char8               (readInteger)
 import           Data.Coerce                         (coerce)
 import           Data.Conduit                        ((.|))
 import qualified Data.Conduit.List                   as CL
+import qualified Data.Foldable                       as Foldable
 import           Data.Int                            (Int64)
-import           Data.List                           (find, inits, transpose)
+import           Data.List                           (find, inits, transpose, nubBy)
+import qualified Data.List.NonEmpty                  as NEL
 import           Data.Maybe                          (isJust)
 import           Data.Monoid                         (mappend, (<>))
 import           Data.Pool                           (Pool)
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
-import qualified Data.Text                           as T
 import           Database.Persist.Sql                hiding (deleteWhereCount,
                                                       updateWhereCount)
-import qualified Data.Foldable as Foldable
 import           Database.Persist.Sql.Types.Internal (IsPersistBackend (..))
-import           Database.Persist.Sql.Util           (dbColumns, dbIdColumns,
-                                                      entityColumnNames,
-                                                      isIdField,
-                                                      keyAndEntityColumnNames,
-                                                      parseEntityValues)
+import           Database.Persist.Sql.Util
 import           Database.Persist.TH                 (MkPersistSettings,
                                                       mkPersistSettings)
 import           Language.Haskell.TH                 (Name, Type (..))
 import           Web.HttpApiData                     (FromHttpApiData,
                                                       ToHttpApiData)
 import           Web.PathPieces                      (PathPiece)
+import Database.Persist.Class
+import Data.Function (on)
 
 -- | A wrapper around 'SqlBackend' type. To specialize this to a specific
 -- database, fill in the type parameter.
@@ -522,35 +520,27 @@ instance PersistQueryRead (SqlFor a) where
                 Left err -> error $ "selectKeysImpl: keyFromValues failed" <> show err
 
 instance PersistUniqueWrite (SqlFor db) where
-    upsert record updates = specializeQuery $ do
+    upsertBy uniqueKey record updates = specializeQuery $ do
       conn <- ask
-      uniqueKey <- withReaderT SqlFor $ onlyUnique record
+      let escape = connEscapeName conn
+      let refCol n = Text.concat [escape (entityDB t), ".", n]
+      let mkUpdateText = mkUpdateText' escape refCol
       case connUpsertSql conn of
         Just upsertSql -> case updates of
-                            [] -> withReaderT SqlFor $ defaultUpsert record updates
+                            [] -> generalizeQuery $ defaultUpsertBy uniqueKey record updates
                             _:_ -> do
-                                let upds = Text.intercalate "," $ map (go' . go) updates
-                                    sql = upsertSql t (pure (onlyOneUniqueDef (Just record))) upds
+                                let upds = Text.intercalate "," $ map mkUpdateText updates
+                                    sql = upsertSql t (NEL.fromList $ persistUniqueToFieldNames uniqueKey) upds
                                     vals = map toPersistValue (toPersistFields record)
                                         ++ map updatePersistValue updates
                                         ++ unqs uniqueKey
 
-                                    go'' n Assign = n <> "=?"
-                                    go'' n Add = Text.concat [n, "=", escape (entityDB t) <> ".", n, "+?"]
-                                    go'' n Subtract = Text.concat [n, "=", escape (entityDB t) <> ".", n, "-?"]
-                                    go'' n Multiply = Text.concat [n, "=", escape (entityDB t) <> ".", n, "*?"]
-                                    go'' n Divide = Text.concat [n, "=", escape (entityDB t) <> ".", n, "/?"]
-                                    go'' _ (BackendSpecificUpdate up) = error $ Text.unpack $ "BackendSpecificUpdate" `Data.Monoid.mappend` up `mappend` "not supported"
-
-                                    go' (x, pu) = go'' (connEscapeName conn x) pu
-                                    go x = (fieldDB $ updateFieldDef x, updateUpdate x)
-
                                 x <- rawSql sql vals
                                 return $ head x
-        Nothing -> withReaderT SqlFor $ defaultUpsert record updates
+        Nothing -> generalizeQuery $ defaultUpsertBy uniqueKey record updates
         where
           t = entityDef $ Just record
-          unqs uniqueKey = concatMap persistUniqueToValues [uniqueKey]
+          unqs uniqueKey' = concatMap persistUniqueToValues [uniqueKey']
 
     deleteBy uniq = specializeQuery $ do
         conn <- ask
@@ -567,7 +557,6 @@ instance PersistUniqueWrite (SqlFor db) where
                 , connEscapeName conn $ entityDB t
                 , " WHERE "
                 , Text.intercalate " AND " $ map (go' conn) $ go uniq]
-
 
 instance PersistUniqueRead (SqlFor a) where
     getBy uniq = specializeQuery $ do
@@ -691,30 +680,17 @@ insrepHelper command es = do
     rawExecute (sql conn columnNames) vals
   where
     entDef = entityDef $ map entityVal es
-    sql conn columnNames = T.concat
+    sql conn columnNames = Text.concat
         [ command
         , " INTO "
         , connEscapeName conn (entityDB entDef)
         , "("
-        , T.intercalate "," columnNames
+        , Text.intercalate "," columnNames
         , ") VALUES ("
-        , T.intercalate "),(" $ replicate (length es) $ T.intercalate "," $ map (const "?") columnNames
+        , Text.intercalate "),(" $ replicate (length es) $ Text.intercalate "," $ map (const "?") columnNames
         , ")"
         ]
     vals = Foldable.foldMap entityValues es
-
-updateFieldDef :: PersistEntity v => Update v -> FieldDef
-updateFieldDef (Update f _ _) =
-    persistFieldDef f
-updateFieldDef BackendUpdate {} =
-    error "updateFieldDef did not expect BackendUpdate"
-
-
-updatePersistValue :: Update v -> PersistValue
-updatePersistValue (Update _ v _) =
-    toPersistValue v
-updatePersistValue BackendUpdate {} =
-    error "updatePersistValue did not expect BackendUpdate"
 
 data OrNull = OrNullYes | OrNullNo
 
@@ -846,9 +822,9 @@ filterClauseHelper includeTable includeWhere (SqlFor conn) orNull filters =
 
         filterValueToPersistValues :: forall a.  PersistField a => FilterValue a -> [PersistValue]
         filterValueToPersistValues v = case v of
-            FilterValue a -> map toPersistValue [a]
+            FilterValue a   -> map toPersistValue [a]
             FilterValues as -> map toPersistValue as
-            UnsafeValue a -> map toPersistValue [a]
+            UnsafeValue a   -> map toPersistValue [a]
 
         orNullSuffix =
             case orNull of
@@ -966,4 +942,29 @@ onlyOneUniqueDef
 onlyOneUniqueDef prxy =
     case entityUniques (entityDef prxy) of
         [uniq] -> uniq
-        _ -> error "impossible due to OnlyOneUniqueKey constraint"
+        _      -> error "impossible due to OnlyOneUniqueKey constraint"
+
+-- | The slow but generic 'upsertBy' implementation for any 'PersistUniqueRead'.
+-- * Lookup corresponding entities (if any) 'getBy'.
+-- * If the record exists, update using 'updateGet'.
+-- * If it does not exist, insert using 'insertEntity'.
+-- @since 2.11
+defaultUpsertBy
+    :: ( PersistEntityBackend record ~ backend
+       , PersistEntity record
+       , BaseBackend backend ~ backend
+       , BackendCompatible SqlBackend backend
+       , MonadIO m
+       , PersistStoreWrite backend
+       , PersistUniqueRead backend
+       )
+    => Unique record   -- ^ uniqueness constraint to find by
+    -> record          -- ^ new record to insert
+    -> [Update record] -- ^ updates to perform if the record already exists
+    -> ReaderT backend m (Entity record) -- ^ the record in the database after the operation
+defaultUpsertBy uniqueKey record updates = do
+    mrecord <- getBy uniqueKey
+    maybe (insertEntity record) (`updateGetEntity` updates) mrecord
+  where
+    updateGetEntity (Entity k _) upds =
+        (Entity k) `fmap` (updateGet k upds)

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+# 0.1.0.2
+
+- Fix test suite to build with `persistent-2.11`
+
 # 0.1.0.1
 
 - Fix test suite to build for stackage
