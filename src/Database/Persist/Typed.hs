@@ -46,7 +46,7 @@ import           Data.Conduit                        ((.|))
 import qualified Data.Conduit.List                   as CL
 import qualified Data.Foldable                       as Foldable
 import           Data.Int                            (Int64)
-import           Data.List                           (find, inits, transpose, nubBy)
+import           Data.List                           (find, inits, transpose)
 import qualified Data.List.NonEmpty                  as NEL
 import           Data.Maybe                          (isJust)
 import           Data.Monoid                         (mappend, (<>))
@@ -63,8 +63,6 @@ import           Language.Haskell.TH                 (Name, Type (..))
 import           Web.HttpApiData                     (FromHttpApiData,
                                                       ToHttpApiData)
 import           Web.PathPieces                      (PathPiece)
-import Database.Persist.Class
-import Data.Function (on)
 
 -- | A wrapper around 'SqlBackend' type. To specialize this to a specific
 -- database, fill in the type parameter.
@@ -238,7 +236,7 @@ instance PersistStoreRead (SqlFor a) where
         conn <- asks unSqlFor
         let t = entityDef $ dummyFromKey k
         let cols = Text.intercalate ","
-                 $ map (connEscapeName conn . fieldDB) $ entityFields t
+                 $ map (connEscapeRawName conn . unFieldNameDB . fieldDB) $ entityFields t
             noColumns :: Bool
             noColumns = null $ entityFields t
         let wher = whereStmtForKey conn k
@@ -246,7 +244,7 @@ instance PersistStoreRead (SqlFor a) where
                 [ "SELECT "
                 , if noColumns then "*" else cols
                 , " FROM "
-                , connEscapeName conn $ entityDB t
+                , connEscapeRawName conn $ unEntityNameDB $ entityDB t
                 , " WHERE "
                 , wher
                 ]
@@ -269,11 +267,11 @@ instance PersistStoreWrite (SqlFor a) where
             go'' n Multiply = Text.concat [n, "=", n, "*?"]
             go'' n Divide = Text.concat [n, "=", n, "/?"]
             go'' _ (BackendSpecificUpdate up) = error $ Text.unpack $ "BackendSpecificUpdate" `Data.Monoid.mappend` up `mappend` "not supported"
-        let go' (x, pu) = go'' (connEscapeName conn x) pu
+        let go' (x, pu) = go'' (connEscapeRawName conn x) pu
         let wher = whereStmtForKey conn k
         let sql = Text.concat
                 [ "UPDATE "
-                , connEscapeName conn $ tableDBName $ recordTypeFromKey k
+                , connEscapeRawName conn $ unEntityNameDB $ tableDBName $ recordTypeFromKey k
                 , " SET "
                 , Text.intercalate "," $ map (go' . go) upds
                 , " WHERE "
@@ -282,7 +280,7 @@ instance PersistStoreWrite (SqlFor a) where
         rawExecute sql $
             map updatePersistValue upds `mappend` keyToValues k
       where
-        go x = (fieldDB $ updateFieldDef x, updateUpdate x)
+        go x = (unFieldNameDB $ fieldDB $ updateFieldDef x, updateUpdate x)
 
     insert val = specializeQuery $ do
         conn <- ask
@@ -375,9 +373,9 @@ instance PersistStoreWrite (SqlFor a) where
           let valss = map (map toPersistValue . toPersistFields) vals
           let sql = Text.concat
                   [ "INSERT INTO "
-                  , connEscapeName conn (entityDB t)
+                  , connEscapeRawName conn (unEntityNameDB $ entityDB t)
                   , "("
-                  , Text.intercalate "," $ map (connEscapeName conn . fieldDB) $ entityFields t
+                  , Text.intercalate "," $ map (connEscapeRawName conn . unFieldNameDB . fieldDB) $ entityFields t
                   , ") VALUES ("
                   , Text.intercalate "),(" $ replicate (length valss) $ Text.intercalate "," $ map (const "?") (entityFields t)
                   , ")"
@@ -392,16 +390,16 @@ instance PersistStoreWrite (SqlFor a) where
         let wher = whereStmtForKey conn k
         let sql = Text.concat
                 [ "UPDATE "
-                , connEscapeName conn (entityDB t)
+                , connEscapeRawName conn (unEntityNameDB $ entityDB t)
                 , " SET "
-                , Text.intercalate "," (map (go conn . fieldDB) $ entityFields t)
+                , Text.intercalate "," (map (go conn . unFieldNameDB . fieldDB) $ entityFields t)
                 , " WHERE "
                 , wher
                 ]
             vals = map toPersistValue (toPersistFields val) `mappend` keyToValues k
         specializeQuery $ rawExecute sql vals
       where
-        go conn x = connEscapeName conn x `Text.append` "=?"
+        go conn x = connEscapeRawName conn x `Text.append` "=?"
 
     insertKey k v = specializeQuery $ insrepHelper "INSERT" [Entity k v]
 
@@ -418,13 +416,15 @@ instance PersistStoreWrite (SqlFor a) where
         wher conn = whereStmtForKey conn k
         sql conn = Text.concat
             [ "DELETE FROM "
-            , connEscapeName conn $ tableDBName $ recordTypeFromKey k
+            , connEscapeRawName conn $ unEntityNameDB $ tableDBName $ recordTypeFromKey k
             , " WHERE "
             , wher conn
             ]
 
 -- orphaned instance for convenience of modularity
 instance PersistQueryRead (SqlFor a) where
+    exists filts =
+        (>0) <$> count filts
     count filts = specializeQuery $ do
         conn <- ask
         let wher = if null filts
@@ -432,7 +432,7 @@ instance PersistQueryRead (SqlFor a) where
                     else filterClause False (SqlFor conn) filts
         let sql = mconcat
                 [ "SELECT COUNT(*) FROM "
-                , connEscapeName conn $ entityDB t
+                , connEscapeRawName conn $ unEntityNameDB $ entityDB t
                 , wher
                 ]
         withRawQuery sql (getFiltsValues (SqlFor conn) filts) $ do
@@ -471,7 +471,7 @@ instance PersistQueryRead (SqlFor a) where
             [ "SELECT "
             , cols conn
             , " FROM "
-            , connEscapeName conn $ entityDB t
+            , connEscapeRawName conn $ unEntityNameDB $ entityDB t
             , wher conn
             , ord (SqlFor conn)
             ]
@@ -492,7 +492,7 @@ instance PersistQueryRead (SqlFor a) where
             [ "SELECT "
             , cols conn
             , " FROM "
-            , connEscapeName conn $ entityDB t
+            , connEscapeRawName conn $ unEntityNameDB $ entityDB t
             , wher conn
             , ord conn
             ]
@@ -522,9 +522,9 @@ instance PersistQueryRead (SqlFor a) where
 instance PersistUniqueWrite (SqlFor db) where
     upsertBy uniqueKey record updates = specializeQuery $ do
       conn <- ask
-      let escape = connEscapeName conn
-      let refCol n = Text.concat [escape (entityDB t), ".", n]
-      let mkUpdateText = mkUpdateText' escape refCol
+      let escape = connEscapeRawName conn
+      let refCol n = Text.concat [escape (unEntityNameDB $ entityDB t), ".", n]
+      let mkUpdateText = mkUpdateText' (escape . unFieldNameDB) refCol
       case connUpsertSql conn of
         Just upsertSql -> case updates of
                             [] -> generalizeQuery $ defaultUpsertBy uniqueKey record updates
@@ -550,11 +550,11 @@ instance PersistUniqueWrite (SqlFor db) where
       where
         t = entityDef $ dummyFromUnique uniq
         go = map snd . persistUniqueToFieldNames
-        go' conn x = connEscapeName conn x `mappend` "=?"
+        go' conn x = connEscapeRawName conn (unFieldNameDB x) `mappend` "=?"
         sql conn =
             Text.concat
                 [ "DELETE FROM "
-                , connEscapeName conn $ entityDB t
+                , connEscapeRawName conn $ unEntityNameDB $ entityDB t
                 , " WHERE "
                 , Text.intercalate " AND " $ map (go' conn) $ go uniq]
 
@@ -566,7 +566,7 @@ instance PersistUniqueRead (SqlFor a) where
                     [ "SELECT "
                     , Text.intercalate "," $ dbColumns conn t
                     , " FROM "
-                    , connEscapeName conn $ entityDB t
+                    , connEscapeRawName conn $ unEntityNameDB $ entityDB t
                     , " WHERE "
                     , sqlClause conn]
             uvals = persistUniqueToValues uniq
@@ -582,8 +582,8 @@ instance PersistUniqueRead (SqlFor a) where
                            Right r -> return $ Just r
       where
         sqlClause conn =
-            Text.intercalate " AND " $ map (go conn) $ toFieldNames' uniq
-        go conn x = connEscapeName conn x `mappend` "=?"
+            Text.intercalate " AND " $ map (go conn . unFieldNameDB) $ toFieldNames' uniq
+        go conn x = connEscapeRawName conn x `mappend` "=?"
         t = entityDef $ dummyFromUnique uniq
         toFieldNames' = map snd . persistUniqueToFieldNames
 
@@ -612,7 +612,7 @@ deleteWhereCount filts = withReaderT unSqlFor $ do
                 else filterClause False (SqlFor conn) filts
         sql = mconcat
             [ "DELETE FROM "
-            , connEscapeName conn $ entityDB t
+            , connEscapeRawName conn $ unEntityNameDB $ entityDB t
             , wher
             ]
     rawExecuteCount sql $ getFiltsValues (SqlFor conn) filts
@@ -632,7 +632,7 @@ updateWhereCount filts upds = withReaderT unSqlFor $ do
                 else filterClause False (SqlFor conn) filts
     let sql = mconcat
             [ "UPDATE "
-            , connEscapeName conn $ entityDB t
+            , connEscapeRawName conn $ unEntityNameDB $ entityDB t
             , " SET "
             , Text.intercalate "," $ map (go' conn . go) upds
             , wher
@@ -648,7 +648,7 @@ updateWhereCount filts upds = withReaderT unSqlFor $ do
     go'' n Multiply = mconcat [n, "=", n, "*?"]
     go'' n Divide = mconcat [n, "=", n, "/?"]
     go'' _ (BackendSpecificUpdate up) = error $ Text.unpack $ "BackendSpecificUpdate" `mappend` up `mappend` "not supported"
-    go' conn (x, pu) = go'' (connEscapeName conn x) pu
+    go' conn (x, pu) = go'' (connEscapeRawName conn x) pu
     go x = (updateField' x, updateUpdate x)
 
     updateField' (Update f _ _) = fieldName f
@@ -683,7 +683,7 @@ insrepHelper command es = do
     sql conn columnNames = Text.concat
         [ command
         , " INTO "
-        , connEscapeName conn (entityDB entDef)
+        , connEscapeRawName conn (unEntityNameDB $ entityDB entDef)
         , "("
         , Text.intercalate "," columnNames
         , ") VALUES ("
@@ -736,23 +736,23 @@ filterClauseHelper includeTable includeWhere (SqlFor conn) orNull filters =
                     else
                       case (allVals, pfilter, isCompFilter pfilter) of
                         ([PersistList xs], Eq, _) ->
-                           let sqlcl=Text.intercalate " and " (map (\a -> connEscapeName conn (fieldDB a) <> showSqlFilter pfilter <> "? ")  (compositeFields pdef))
+                           let sqlcl=Text.intercalate " and " (map (\a -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "? ")  (compositeFields pdef))
                            in (wrapSql sqlcl,xs)
                         ([PersistList xs], Ne, _) ->
-                           let sqlcl=Text.intercalate " or " (map (\a -> connEscapeName conn (fieldDB a) <> showSqlFilter pfilter <> "? ")  (compositeFields pdef))
+                           let sqlcl=Text.intercalate " or " (map (\a -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "? ")  (compositeFields pdef))
                            in (wrapSql sqlcl,xs)
                         (_, In, _) ->
                            let xxs = transpose (map fromPersistList allVals)
-                               sqls=map (\(a,xs) -> connEscapeName conn (fieldDB a) <> showSqlFilter pfilter <> "(" <> Text.intercalate "," (replicate (length xs) " ?") <> ") ") (zip (compositeFields pdef) xxs)
+                               sqls=map (\(a,xs) -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "(" <> Text.intercalate "," (replicate (length xs) " ?") <> ") ") (zip (compositeFields pdef) xxs)
                            in (wrapSql (Text.intercalate " and " (map wrapSql sqls)), concat xxs)
                         (_, NotIn, _) ->
                            let xxs = transpose (map fromPersistList allVals)
-                               sqls=map (\(a,xs) -> connEscapeName conn (fieldDB a) <> showSqlFilter pfilter <> "(" <> Text.intercalate "," (replicate (length xs) " ?") <> ") ") (zip (compositeFields pdef) xxs)
+                               sqls=map (\(a,xs) -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "(" <> Text.intercalate "," (replicate (length xs) " ?") <> ") ") (zip (compositeFields pdef) xxs)
                            in (wrapSql (Text.intercalate " or " (map wrapSql sqls)), concat xxs)
                         ([PersistList xs], _, True) ->
                            let zs = tail (inits (compositeFields pdef))
                                sql1 = map (\b -> wrapSql (Text.intercalate " and " (map (\(i,a) -> sql2 (i==length b) a) (zip [1..] b)))) zs
-                               sql2 islast a = connEscapeName conn (fieldDB a) <> (if islast then showSqlFilter pfilter else showSqlFilter Eq) <> "? "
+                               sql2 islast a = connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> (if islast then showSqlFilter pfilter else showSqlFilter Eq) <> "? "
                                sqlcl = Text.intercalate " or " sql1
                            in (wrapSql sqlcl, concat (tail (inits xs)))
                         (_, BackendSpecificFilter _, _) -> error "unhandled type BackendSpecificFilter for composite/non id primary keys"
@@ -834,13 +834,13 @@ filterClauseHelper includeTable includeWhere (SqlFor conn) orNull filters =
         isNull = PersistNull `elem` allVals
         notNullVals = filter (/= PersistNull) allVals
         allVals = filterValueToPersistValues value
-        tn = connEscapeName conn $ entityDB
+        tn = connEscapeRawName conn $ unEntityNameDB $ entityDB
            $ entityDef $ dummyFromFilts [Filter field value pfilter]
         name =
             (if includeTable
                 then ((tn <> ".") <>)
                 else id)
-            $ connEscapeName conn $ fieldName field
+            $ connEscapeRawName conn $ fieldName field
         qmarks = case value of
                     FilterValues x ->
                         let x' = filter (/= PersistNull) $ map toPersistValue x
@@ -859,8 +859,8 @@ filterClauseHelper includeTable includeWhere (SqlFor conn) orNull filters =
 dummyFromFilts :: [Filter v] -> Maybe v
 dummyFromFilts _ = Nothing
 
-fieldName ::  forall record typ a.  (PersistEntity record, PersistEntityBackend record ~ SqlFor a) => EntityField record typ -> DBName
-fieldName f = fieldDB $ persistFieldDef f
+fieldName ::  forall record typ a.  (PersistEntity record, PersistEntityBackend record ~ SqlFor a) => EntityField record typ -> Text
+fieldName f = unFieldNameDB $ fieldDB $ persistFieldDef f
 
 
 getFiltsValues :: forall val a. (PersistEntity val, PersistEntityBackend val ~ SqlFor a)
@@ -881,7 +881,7 @@ orderClause includeTable (SqlFor conn) o =
     dummyFromOrder :: SelectOpt a -> Maybe a
     dummyFromOrder _ = Nothing
 
-    tn = connEscapeName conn $ entityDB $ entityDef $ dummyFromOrder o
+    tn = connEscapeRawName conn $ unEntityNameDB $ entityDB $ entityDef $ dummyFromOrder o
 
     name :: (PersistEntityBackend record ~ SqlFor a, PersistEntity record)
          => EntityField record typ -> Text
@@ -889,28 +889,17 @@ orderClause includeTable (SqlFor conn) o =
         (if includeTable
             then ((tn <> ".") <>)
             else id)
-        $ connEscapeName conn $ fieldName x
-
-defaultUpsert
-    :: ( MonadIO m
-       , PersistEntity record
-       , PersistUniqueWrite backend
-       , PersistEntityBackend record ~ BaseBackend backend
-       , OnlyOneUniqueKey record)
-    => record -> [Update record] -> ReaderT backend m (Entity record)
-defaultUpsert record updates = do
-    uniqueKey <- onlyUnique record
-    upsertBy uniqueKey record updates
+        $ connEscapeRawName conn $ fieldName x
 
 dummyFromUnique :: Unique v -> Maybe v
 dummyFromUnique _ = Nothing
 
-escape :: DBName -> Text.Text
-escape (DBName s) = Text.pack $ '"' : escapeQuote (Text.unpack s) ++ "\""
-  where
-    escapeQuote ""       = ""
-    escapeQuote ('"':xs) = "\"\"" ++ escapeQuote xs
-    escapeQuote (x:xs)   = x : escapeQuote xs
+-- escape :: DBName -> Text.Text
+-- escape (DBName s) = Text.pack $ '"' : escapeQuote (Text.unpack s) ++ "\""
+--   where
+--     escapeQuote ""       = ""
+--     escapeQuote ('"':xs) = "\"\"" ++ escapeQuote xs
+--     escapeQuote (x:xs)   = x : escapeQuote xs
 
 runChunked
     :: (Monad m)
@@ -930,19 +919,6 @@ runChunked width m xs = do
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
 chunksOf size xs = let (chunk, rest) = splitAt size xs in chunk : chunksOf size rest
-
--- | Given a proxy for a 'PersistEntity' record, this returns the sole
--- 'UniqueDef' for that entity.
---
--- @since 2.10.0
-onlyOneUniqueDef
-    :: (OnlyOneUniqueKey record, Monad proxy)
-    => proxy record
-    -> UniqueDef
-onlyOneUniqueDef prxy =
-    case entityUniques (entityDef prxy) of
-        [uniq] -> uniq
-        _      -> error "impossible due to OnlyOneUniqueKey constraint"
 
 -- | The slow but generic 'upsertBy' implementation for any 'PersistUniqueRead'.
 -- * Lookup corresponding entities (if any) 'getBy'.
