@@ -1,5 +1,9 @@
 # CHANGELOG
 
+# 0.1.0.3
+
+- Support `persistent-2.12`
+
 # 0.1.0.2
 
 - Fix test suite to build with `persistent-2.11`
