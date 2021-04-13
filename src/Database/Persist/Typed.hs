@@ -33,36 +33,37 @@ module Database.Persist.Typed
     , fromSqlKeyFor
     ) where
 
-import           Control.Exception                   hiding (throw)
-import           Control.Monad.IO.Class              (MonadIO (..))
-import           Control.Monad.Logger                (NoLoggingT)
-import           Control.Monad.Trans.Reader          (ReaderT (..), ask, asks,
-                                                      withReaderT)
-import           Control.Monad.Trans.Resource        (MonadUnliftIO, ResourceT)
-import           Data.Aeson                          as A
-import           Data.ByteString.Char8               (readInteger)
-import           Data.Coerce                         (coerce)
-import           Data.Conduit                        ((.|))
-import qualified Data.Conduit.List                   as CL
-import qualified Data.Foldable                       as Foldable
-import           Data.Int                            (Int64)
-import           Data.List                           (find, inits, transpose)
-import qualified Data.List.NonEmpty                  as NEL
-import           Data.Maybe                          (isJust)
-import           Data.Monoid                         (mappend, (<>))
-import           Data.Pool                           (Pool)
-import           Data.Text                           (Text)
-import qualified Data.Text                           as Text
-import           Database.Persist.Sql                hiding (deleteWhereCount,
-                                                      updateWhereCount)
-import           Database.Persist.Sql.Types.Internal (IsPersistBackend (..))
+import           Control.Exception                    hiding (throw)
+import           Control.Monad.IO.Class               (MonadIO (..))
+import           Control.Monad.Logger                 (NoLoggingT)
+import           Control.Monad.Trans.Reader           (ReaderT (..), ask, asks,
+                                                       withReaderT)
+import           Control.Monad.Trans.Resource         (MonadUnliftIO, ResourceT)
+import           Data.Aeson                           as A
+import           Data.ByteString.Char8                (readInteger)
+import           Data.Coerce                          (coerce)
+import           Data.Conduit                         ((.|))
+import qualified Data.Conduit.List                    as CL
+import qualified Data.Foldable                        as Foldable
+import           Data.Int                             (Int64)
+import           Data.List                            (find, inits, transpose)
+import qualified Data.List.NonEmpty                   as NEL
+import           Data.Maybe                           (isJust)
+import           Data.Monoid                          (mappend, (<>))
+import           Data.Pool                            (Pool)
+import           Data.Text                            (Text)
+import qualified Data.Text                            as Text
+import           Database.Persist.Sql                 hiding (deleteWhereCount,
+                                                       updateWhereCount)
+import           Database.Persist.Sql.Types.Internal  (IsPersistBackend (..))
 import           Database.Persist.Sql.Util
-import           Database.Persist.TH                 (MkPersistSettings,
-                                                      mkPersistSettings)
-import           Language.Haskell.TH                 (Name, Type (..))
-import           Web.HttpApiData                     (FromHttpApiData,
-                                                      ToHttpApiData)
-import           Web.PathPieces                      (PathPiece)
+import           Database.Persist.SqlBackend.Internal
+import           Database.Persist.TH                  (MkPersistSettings,
+                                                       mkPersistSettings)
+import           Language.Haskell.TH                  (Name, Type (..))
+import           Web.HttpApiData                      (FromHttpApiData,
+                                                       ToHttpApiData)
+import           Web.PathPieces                       (PathPiece)
 
 -- | A wrapper around 'SqlBackend' type. To specialize this to a specific
 -- database, fill in the type parameter.
@@ -467,7 +468,7 @@ instance PersistQueryRead (SqlFor a) where
                 []   -> ""
                 ords -> " ORDER BY " <> Text.intercalate "," ords
         cols = Text.intercalate ", " . entityColumnNames t
-        sql conn = connLimitOffset conn (limit,offset) (not (null orders)) $ mconcat
+        sql conn = connLimitOffset conn (limit,offset) $ mconcat
             [ "SELECT "
             , cols conn
             , " FROM "
@@ -488,7 +489,7 @@ instance PersistQueryRead (SqlFor a) where
         wher conn = if null filts
                     then ""
                     else filterClause False (SqlFor conn) filts
-        sql conn = connLimitOffset conn (limit,offset) (not (null orders)) $ mconcat
+        sql conn = connLimitOffset conn (limit,offset) $ mconcat
             [ "SELECT "
             , cols conn
             , " FROM "
@@ -876,7 +877,7 @@ orderClause includeTable (SqlFor conn) o =
     case o of
         Asc  x -> name x
         Desc x -> name x <> " DESC"
-        _ -> error "orderClause: expected Asc or Desc, not limit or offset"
+        _      -> error "orderClause: expected Asc or Desc, not limit or offset"
   where
     dummyFromOrder :: SelectOpt a -> Maybe a
     dummyFromOrder _ = Nothing

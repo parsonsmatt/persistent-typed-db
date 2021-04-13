@@ -36,7 +36,7 @@ library
     , http-api-data
     , monad-logger
     , path-pieces
-    , persistent >=2.12.0 && < 2.13
+    , persistent >=2.13.0 && < 3
     , resource-pool
     , resourcet >=1.2.0
     , template-haskell
@@ -58,13 +58,12 @@ test-suite specs
     , base >=4.10
     , bytestring
     , conduit >=1.3.0
-    , esqueleto
+    , esqueleto >= 3.4.2.0
     , hspec
     , http-api-data
     , monad-logger
     , path-pieces
-    , persistent >=2.8.0
-    , persistent-template
+    , persistent 
     , persistent-typed-db
     , resource-pool
     , resourcet >=1.2.0
