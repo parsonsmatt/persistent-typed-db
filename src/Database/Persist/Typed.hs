@@ -1,12 +1,12 @@
-{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE InstanceSigs               #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE QuasiQuotes                #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- | This module defines types and helpers for type-safe access to multiple
 -- database schema.
@@ -33,37 +33,34 @@ module Database.Persist.Typed
     , fromSqlKeyFor
     ) where
 
-import           Control.Exception                    hiding (throw)
-import           Control.Monad.IO.Class               (MonadIO (..))
-import           Control.Monad.Logger                 (NoLoggingT)
-import           Control.Monad.Trans.Reader           (ReaderT (..), ask, asks,
-                                                       withReaderT)
-import           Control.Monad.Trans.Resource         (MonadUnliftIO, ResourceT)
-import           Data.Aeson                           as A
-import           Data.ByteString.Char8                (readInteger)
-import           Data.Coerce                          (coerce)
-import           Data.Conduit                         ((.|))
-import qualified Data.Conduit.List                    as CL
-import qualified Data.Foldable                        as Foldable
-import           Data.Int                             (Int64)
-import           Data.List                            (find, inits, transpose)
-import qualified Data.List.NonEmpty                   as NEL
-import           Data.Maybe                           (isJust)
-import           Data.Monoid                          (mappend, (<>))
-import           Data.Pool                            (Pool)
-import           Data.Text                            (Text)
-import qualified Data.Text                            as Text
-import           Database.Persist.Sql                 hiding (deleteWhereCount,
-                                                       updateWhereCount)
-import           Database.Persist.Sql.Types.Internal  (IsPersistBackend (..))
-import           Database.Persist.Sql.Util
-import           Database.Persist.SqlBackend.Internal
-import           Database.Persist.TH                  (MkPersistSettings,
-                                                       mkPersistSettings)
-import           Language.Haskell.TH                  (Name, Type (..))
-import           Web.HttpApiData                      (FromHttpApiData,
-                                                       ToHttpApiData)
-import           Web.PathPieces                       (PathPiece)
+import Control.Exception hiding (throw)
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Logger (NoLoggingT)
+import Control.Monad.Trans.Reader (ReaderT(..), ask, asks, withReaderT)
+import Control.Monad.Trans.Resource (MonadUnliftIO, ResourceT)
+import Data.Aeson as A
+import Data.ByteString.Char8 (readInteger)
+import Data.Coerce (coerce)
+import Data.Conduit ((.|))
+import qualified Data.Conduit.List as CL
+import qualified Data.Foldable as Foldable
+import Data.Int (Int64)
+import Data.List (find, inits, transpose)
+import qualified Data.List.NonEmpty as NEL
+import Data.Maybe (isJust)
+import Data.Monoid (mappend, (<>))
+import Data.Pool (Pool)
+import Data.Text (Text)
+import qualified Data.Text as Text
+import Database.Persist.Sql hiding
+       (deleteWhereCount, filterClause, updateWhereCount)
+import Database.Persist.Sql.Types.Internal (IsPersistBackend(..))
+import Database.Persist.Sql.Util
+import Database.Persist.SqlBackend.Internal
+import Database.Persist.TH (MkPersistSettings, mkPersistSettings)
+import Language.Haskell.TH (Name, Type(..))
+import Web.HttpApiData (FromHttpApiData, ToHttpApiData)
+import Web.PathPieces (PathPiece)
 
 -- | A wrapper around 'SqlBackend' type. To specialize this to a specific
 -- database, fill in the type parameter.
@@ -245,7 +242,7 @@ instance PersistStoreRead (SqlFor a) where
                 [ "SELECT "
                 , if noColumns then "*" else cols
                 , " FROM "
-                , connEscapeRawName conn $ unEntityNameDB $ entityDB t
+                , connEscapeRawName conn $ unEntityNameDB $ getEntityDBName t
                 , " WHERE "
                 , wher
                 ]
@@ -325,7 +322,7 @@ instance PersistStoreWrite (SqlFor a) where
                 case entityPrimary t of
                    Nothing -> error $ "ISRManyKeys is used when Primary is defined " ++ show sql
                    Just pdef ->
-                        let pks = map fieldHaskell $ compositeFields pdef
+                        let pks = map fieldHaskell $ NEL.toList $ compositeFields pdef
                             keyvals = map snd $ filter (\(a, _) -> let ret=isJust (find (== a) pks) in ret) $ zip (map fieldHaskell $ entityFields t) fs
                         in  case keyFromValues keyvals of
                                 Right k -> return k
@@ -354,7 +351,7 @@ instance PersistStoreWrite (SqlFor a) where
     insertEntityMany es' = specializeQuery $ do
         conn <- ask
         let entDef = entityDef $ map entityVal es'
-        let columnNames = keyAndEntityColumnNames entDef conn
+        let columnNames = NEL.toList $ keyAndEntityColumnNames entDef conn
         runChunked (length columnNames) go es'
       where
         go = insrepHelper "INSERT"
@@ -374,7 +371,7 @@ instance PersistStoreWrite (SqlFor a) where
           let valss = map (map toPersistValue . toPersistFields) vals
           let sql = Text.concat
                   [ "INSERT INTO "
-                  , connEscapeRawName conn (unEntityNameDB $ entityDB t)
+                  , connEscapeRawName conn (unEntityNameDB $ getEntityDBName t)
                   , "("
                   , Text.intercalate "," $ map (connEscapeRawName conn . unFieldNameDB . fieldDB) $ entityFields t
                   , ") VALUES ("
@@ -391,7 +388,7 @@ instance PersistStoreWrite (SqlFor a) where
         let wher = whereStmtForKey conn k
         let sql = Text.concat
                 [ "UPDATE "
-                , connEscapeRawName conn (unEntityNameDB $ entityDB t)
+                , connEscapeRawName conn (unEntityNameDB $ getEntityDBName t)
                 , " SET "
                 , Text.intercalate "," (map (go conn . unFieldNameDB . fieldDB) $ entityFields t)
                 , " WHERE "
@@ -433,7 +430,7 @@ instance PersistQueryRead (SqlFor a) where
                     else filterClause False (SqlFor conn) filts
         let sql = mconcat
                 [ "SELECT COUNT(*) FROM "
-                , connEscapeRawName conn $ unEntityNameDB $ entityDB t
+                , connEscapeRawName conn $ unEntityNameDB $ getEntityDBName t
                 , wher
                 ]
         withRawQuery sql (getFiltsValues (SqlFor conn) filts) $ do
@@ -472,7 +469,7 @@ instance PersistQueryRead (SqlFor a) where
             [ "SELECT "
             , cols conn
             , " FROM "
-            , connEscapeRawName conn $ unEntityNameDB $ entityDB t
+            , connEscapeRawName conn $ unEntityNameDB $ getEntityDBName t
             , wher conn
             , ord (SqlFor conn)
             ]
@@ -493,7 +490,7 @@ instance PersistQueryRead (SqlFor a) where
             [ "SELECT "
             , cols conn
             , " FROM "
-            , connEscapeRawName conn $ unEntityNameDB $ entityDB t
+            , connEscapeRawName conn $ unEntityNameDB $ getEntityDBName t
             , wher conn
             , ord conn
             ]
@@ -513,7 +510,7 @@ instance PersistQueryRead (SqlFor a) where
                            [PersistDouble x] -> return [PersistInt64 (truncate x)] -- oracle returns Double
                            _ -> return xs
                       Just pdef ->
-                           let pks = map fieldHaskell $ compositeFields pdef
+                           let pks = map fieldHaskell $ NEL.toList $ compositeFields pdef
                                keyvals = map snd $ filter (\(a, _) -> let ret=isJust (find (== a) pks) in ret) $ zip (map fieldHaskell $ entityFields t) xs
                            in return keyvals
             case keyFromValues keyvals of
@@ -524,7 +521,7 @@ instance PersistUniqueWrite (SqlFor db) where
     upsertBy uniqueKey record updates = specializeQuery $ do
       conn <- ask
       let escape = connEscapeRawName conn
-      let refCol n = Text.concat [escape (unEntityNameDB $ entityDB t), ".", n]
+      let refCol n = Text.concat [escape (unEntityNameDB $ getEntityDBName t), ".", n]
       let mkUpdateText = mkUpdateText' (escape . unFieldNameDB) refCol
       case connUpsertSql conn of
         Just upsertSql -> case updates of
@@ -555,7 +552,7 @@ instance PersistUniqueWrite (SqlFor db) where
         sql conn =
             Text.concat
                 [ "DELETE FROM "
-                , connEscapeRawName conn $ unEntityNameDB $ entityDB t
+                , connEscapeRawName conn $ unEntityNameDB $ getEntityDBName t
                 , " WHERE "
                 , Text.intercalate " AND " $ map (go' conn) $ go uniq]
 
@@ -567,7 +564,7 @@ instance PersistUniqueRead (SqlFor a) where
                     [ "SELECT "
                     , Text.intercalate "," $ dbColumns conn t
                     , " FROM "
-                    , connEscapeRawName conn $ unEntityNameDB $ entityDB t
+                    , connEscapeRawName conn $ unEntityNameDB $ getEntityDBName t
                     , " WHERE "
                     , sqlClause conn]
             uvals = persistUniqueToValues uniq
@@ -613,7 +610,7 @@ deleteWhereCount filts = withReaderT unSqlFor $ do
                 else filterClause False (SqlFor conn) filts
         sql = mconcat
             [ "DELETE FROM "
-            , connEscapeRawName conn $ unEntityNameDB $ entityDB t
+            , connEscapeRawName conn $ unEntityNameDB $ getEntityDBName t
             , wher
             ]
     rawExecuteCount sql $ getFiltsValues (SqlFor conn) filts
@@ -633,7 +630,7 @@ updateWhereCount filts upds = withReaderT unSqlFor $ do
                 else filterClause False (SqlFor conn) filts
     let sql = mconcat
             [ "UPDATE "
-            , connEscapeRawName conn $ unEntityNameDB $ entityDB t
+            , connEscapeRawName conn $ unEntityNameDB $ getEntityDBName t
             , " SET "
             , Text.intercalate "," $ map (go' conn . go) upds
             , wher
@@ -665,7 +662,7 @@ whereStmtForKey :: PersistEntity record => SqlBackend -> Key record -> Text
 whereStmtForKey conn k =
     Text.intercalate " AND "
   $ map (<> "=? ")
-  $ dbIdColumns conn entDef
+  $ NEL.toList $ dbIdColumns conn entDef
   where
     entDef = entityDef $ dummyFromKey k
 
@@ -677,14 +674,14 @@ insrepHelper :: (MonadIO m, PersistEntity val)
 insrepHelper _       []  = return ()
 insrepHelper command es = do
     conn <- ask
-    let columnNames = keyAndEntityColumnNames entDef conn
+    let columnNames = NEL.toList $ keyAndEntityColumnNames entDef conn
     rawExecute (sql conn columnNames) vals
   where
     entDef = entityDef $ map entityVal es
     sql conn columnNames = Text.concat
         [ command
         , " INTO "
-        , connEscapeRawName conn (unEntityNameDB $ entityDB entDef)
+        , connEscapeRawName conn (unEntityNameDB $ getEntityDBName entDef)
         , "("
         , Text.intercalate "," columnNames
         , ") VALUES ("
@@ -737,21 +734,21 @@ filterClauseHelper includeTable includeWhere (SqlFor conn) orNull filters =
                     else
                       case (allVals, pfilter, isCompFilter pfilter) of
                         ([PersistList xs], Eq, _) ->
-                           let sqlcl=Text.intercalate " and " (map (\a -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "? ")  (compositeFields pdef))
+                           let sqlcl=Text.intercalate " and " (map (\a -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "? ")  (NEL.toList $ compositeFields pdef))
                            in (wrapSql sqlcl,xs)
                         ([PersistList xs], Ne, _) ->
-                           let sqlcl=Text.intercalate " or " (map (\a -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "? ")  (compositeFields pdef))
+                           let sqlcl=Text.intercalate " or " (map (\a -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "? ")  (NEL.toList $ compositeFields pdef))
                            in (wrapSql sqlcl,xs)
                         (_, In, _) ->
                            let xxs = transpose (map fromPersistList allVals)
-                               sqls=map (\(a,xs) -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "(" <> Text.intercalate "," (replicate (length xs) " ?") <> ") ") (zip (compositeFields pdef) xxs)
+                               sqls=map (\(a,xs) -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "(" <> Text.intercalate "," (replicate (length xs) " ?") <> ") ") (zip (NEL.toList $ compositeFields pdef) xxs)
                            in (wrapSql (Text.intercalate " and " (map wrapSql sqls)), concat xxs)
                         (_, NotIn, _) ->
                            let xxs = transpose (map fromPersistList allVals)
-                               sqls=map (\(a,xs) -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "(" <> Text.intercalate "," (replicate (length xs) " ?") <> ") ") (zip (compositeFields pdef) xxs)
+                               sqls=map (\(a,xs) -> connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> showSqlFilter pfilter <> "(" <> Text.intercalate "," (replicate (length xs) " ?") <> ") ") (zip (NEL.toList $ compositeFields pdef) xxs)
                            in (wrapSql (Text.intercalate " or " (map wrapSql sqls)), concat xxs)
                         ([PersistList xs], _, True) ->
-                           let zs = tail (inits (compositeFields pdef))
+                           let zs = tail (inits (NEL.toList $ compositeFields pdef))
                                sql1 = map (\b -> wrapSql (Text.intercalate " and " (map (\(i,a) -> sql2 (i==length b) a) (zip [1..] b)))) zs
                                sql2 islast a = connEscapeRawName conn (unFieldNameDB $ fieldDB a) <> (if islast then showSqlFilter pfilter else showSqlFilter Eq) <> "? "
                                sqlcl = Text.intercalate " or " sql1
@@ -835,7 +832,7 @@ filterClauseHelper includeTable includeWhere (SqlFor conn) orNull filters =
         isNull = PersistNull `elem` allVals
         notNullVals = filter (/= PersistNull) allVals
         allVals = filterValueToPersistValues value
-        tn = connEscapeRawName conn $ unEntityNameDB $ entityDB
+        tn = connEscapeRawName conn $ unEntityNameDB $ getEntityDBName
            $ entityDef $ dummyFromFilts [Filter field value pfilter]
         name =
             (if includeTable
@@ -882,7 +879,7 @@ orderClause includeTable (SqlFor conn) o =
     dummyFromOrder :: SelectOpt a -> Maybe a
     dummyFromOrder _ = Nothing
 
-    tn = connEscapeRawName conn $ unEntityNameDB $ entityDB $ entityDef $ dummyFromOrder o
+    tn = connEscapeRawName conn $ unEntityNameDB $ getEntityDBName $ entityDef $ dummyFromOrder o
 
     name :: (PersistEntityBackend record ~ SqlFor a, PersistEntity record)
          => EntityField record typ -> Text

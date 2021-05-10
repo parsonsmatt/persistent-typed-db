@@ -4,12 +4,9 @@ packages:
 - .
 
 extra-deps:
-- git: git@github.com:yesodweb/persistent
-  commit: f7ad9b05a1ee899c6800962cbc795b39d01c5643
-  subdirs:
-    - persistent
-    - persistent-sqlite
-    - persistent-mysql
-    - persistent-postgresql
-- git: git@github.com:bitemyapp/esqueleto
-  commit: c3b9f0390fb89ced3bb86943c24627028b11bea6
+- persistent-2.13.0.0
+- persistent-sqlite-2.13.0.0
+- persistent-mysql-2.13.0.0
+- persistent-postgresql-2.13.0.0
+- esqueleto-3.4.2.1
+- lift-type-0.1.0.1
