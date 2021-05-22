@@ -234,9 +234,9 @@ instance PersistStoreRead (SqlFor a) where
         conn <- asks unSqlFor
         let t = entityDef $ dummyFromKey k
         let cols = Text.intercalate ","
-                 $ map (connEscapeRawName conn . unFieldNameDB . fieldDB) $ entityFields t
+                 $ map (connEscapeRawName conn . unFieldNameDB . fieldDB) $ getEntityFields t
             noColumns :: Bool
-            noColumns = null $ entityFields t
+            noColumns = null $ getEntityFields t
         let wher = whereStmtForKey conn k
         let sql = Text.concat
                 [ "SELECT "
@@ -323,7 +323,7 @@ instance PersistStoreWrite (SqlFor a) where
                    Nothing -> error $ "ISRManyKeys is used when Primary is defined " ++ show sql
                    Just pdef ->
                         let pks = map fieldHaskell $ NEL.toList $ compositeFields pdef
-                            keyvals = map snd $ filter (\(a, _) -> let ret=isJust (find (== a) pks) in ret) $ zip (map fieldHaskell $ entityFields t) fs
+                            keyvals = map snd $ filter (\(a, _) -> let ret=isJust (find (== a) pks) in ret) $ zip (map fieldHaskell $ getEntityFields t) fs
                         in  case keyFromValues keyvals of
                                 Right k -> return k
                                 Left e  -> error $ "ISRManyKeys: unexpected keyvals result: " `mappend` Text.unpack e
@@ -363,7 +363,7 @@ instance PersistStoreWrite (SqlFor a) where
         case connMaxParams conn of
             Nothing -> insertMany_' vals0
             Just maxParams -> do
-                let chunkSize = maxParams `div` length (entityFields t)
+                let chunkSize = maxParams `div` length (getEntityFields t)
                 mapM_ insertMany_' (chunksOf chunkSize vals0)
       where
         insertMany_' vals = do
@@ -373,9 +373,9 @@ instance PersistStoreWrite (SqlFor a) where
                   [ "INSERT INTO "
                   , connEscapeRawName conn (unEntityNameDB $ getEntityDBName t)
                   , "("
-                  , Text.intercalate "," $ map (connEscapeRawName conn . unFieldNameDB . fieldDB) $ entityFields t
+                  , Text.intercalate "," $ map (connEscapeRawName conn . unFieldNameDB . fieldDB) $ getEntityFields t
                   , ") VALUES ("
-                  , Text.intercalate "),(" $ replicate (length valss) $ Text.intercalate "," $ map (const "?") (entityFields t)
+                  , Text.intercalate "),(" $ replicate (length valss) $ Text.intercalate "," $ map (const "?") (getEntityFields t)
                   , ")"
                   ]
           rawExecute sql (concat valss)
@@ -390,7 +390,7 @@ instance PersistStoreWrite (SqlFor a) where
                 [ "UPDATE "
                 , connEscapeRawName conn (unEntityNameDB $ getEntityDBName t)
                 , " SET "
-                , Text.intercalate "," (map (go conn . unFieldNameDB . fieldDB) $ entityFields t)
+                , Text.intercalate "," (map (go conn . unFieldNameDB . fieldDB) $ getEntityFields t)
                 , " WHERE "
                 , wher
                 ]
@@ -464,7 +464,7 @@ instance PersistQueryRead (SqlFor a) where
             case map (orderClause False conn) orders of
                 []   -> ""
                 ords -> " ORDER BY " <> Text.intercalate "," ords
-        cols = Text.intercalate ", " . entityColumnNames t
+        cols = Text.intercalate ", " . NEL.toList . keyAndEntityColumnNames t
         sql conn = connLimitOffset conn (limit,offset) $ mconcat
             [ "SELECT "
             , cols conn
@@ -480,7 +480,7 @@ instance PersistQueryRead (SqlFor a) where
         return $ fmap (.| CL.mapM parse) srcRes
       where
         t = entityDef $ dummyFromFilts filts
-        cols conn = Text.intercalate "," $ dbIdColumns conn t
+        cols conn = Text.intercalate "," . NEL.toList $ dbIdColumns conn t
 
 
         wher conn = if null filts
@@ -511,7 +511,7 @@ instance PersistQueryRead (SqlFor a) where
                            _ -> return xs
                       Just pdef ->
                            let pks = map fieldHaskell $ NEL.toList $ compositeFields pdef
-                               keyvals = map snd $ filter (\(a, _) -> let ret=isJust (find (== a) pks) in ret) $ zip (map fieldHaskell $ entityFields t) xs
+                               keyvals = map snd $ filter (\(a, _) -> let ret=isJust (find (== a) pks) in ret) $ zip (map fieldHaskell $ getEntityFields t) xs
                            in return keyvals
             case keyFromValues keyvals of
                 Right k -> return k
@@ -528,7 +528,7 @@ instance PersistUniqueWrite (SqlFor db) where
                             [] -> generalizeQuery $ defaultUpsertBy uniqueKey record updates
                             _:_ -> do
                                 let upds = Text.intercalate "," $ map mkUpdateText updates
-                                    sql = upsertSql t (NEL.fromList $ persistUniqueToFieldNames uniqueKey) upds
+                                    sql = upsertSql t (persistUniqueToFieldNames uniqueKey) upds
                                     vals = map toPersistValue (toPersistFields record)
                                         ++ map updatePersistValue updates
                                         ++ unqs uniqueKey
@@ -547,7 +547,7 @@ instance PersistUniqueWrite (SqlFor db) where
         rawExecute sql' vals
       where
         t = entityDef $ dummyFromUnique uniq
-        go = map snd . persistUniqueToFieldNames
+        go = map snd . NEL.toList . persistUniqueToFieldNames
         go' conn x = connEscapeRawName conn (unFieldNameDB x) `mappend` "=?"
         sql conn =
             Text.concat
@@ -562,7 +562,7 @@ instance PersistUniqueRead (SqlFor a) where
         let sql =
                 Text.concat
                     [ "SELECT "
-                    , Text.intercalate "," $ dbColumns conn t
+                    , Text.intercalate "," . NEL.toList $ dbColumns conn t
                     , " FROM "
                     , connEscapeRawName conn $ unEntityNameDB $ getEntityDBName t
                     , " WHERE "
@@ -583,7 +583,7 @@ instance PersistUniqueRead (SqlFor a) where
             Text.intercalate " AND " $ map (go conn . unFieldNameDB) $ toFieldNames' uniq
         go conn x = connEscapeRawName conn x `mappend` "=?"
         t = entityDef $ dummyFromUnique uniq
-        toFieldNames' = map snd . persistUniqueToFieldNames
+        toFieldNames' = map snd . NEL.toList . persistUniqueToFieldNames
 
 instance PersistQueryWrite (SqlFor db) where
     deleteWhere filts = do
