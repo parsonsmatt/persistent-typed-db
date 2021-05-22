@@ -1,5 +1,9 @@
 # CHANGELOG
 
+# 0.1.0.4
+
+- Support `persistent-2.13`
+
 # 0.1.0.3
 
 - Support `persistent-2.12`

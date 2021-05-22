@@ -1,6 +1,6 @@
 cabal-version: 1.12
 name:           persistent-typed-db
-version:        0.1.0.3
+version:        0.1.0.4
 synopsis:       Type safe access to multiple database schemata.
 description:    See README.md for more details, examples, and fun.
 category:       Web
@@ -36,7 +36,7 @@ library
     , http-api-data
     , monad-logger
     , path-pieces
-    , persistent >=2.12.0 && < 2.13
+    , persistent >=2.13.0 && < 2.14
     , resource-pool
     , resourcet >=1.2.0
     , template-haskell
@@ -63,12 +63,13 @@ test-suite specs
     , http-api-data
     , monad-logger
     , path-pieces
-    , persistent >=2.8.0
-    , persistent-template
+    , persistent >= 2.13
     , persistent-typed-db
     , resource-pool
     , resourcet >=1.2.0
     , template-haskell
     , text
     , transformers
+  build-tool-depends: 
+    hspec-discover:hspec-discover
   default-language: Haskell2010

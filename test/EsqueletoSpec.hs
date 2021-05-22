@@ -40,6 +40,12 @@ Foo
     other_id Int
     |]
 
+instance ToBackendKey (SqlFor TestDb) Foo where
+    toBackendKey =
+        unFooKey
+    fromBackendKey =
+        FooKey
+
 spec :: Spec
 spec = do
     let typeChecks = True `shouldBe` True
