@@ -7,6 +7,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# language CPP #-}
 
 -- | This module defines types and helpers for type-safe access to multiple
 -- database schema.
@@ -54,7 +55,7 @@ import Data.Monoid (mappend, (<>))
 import Data.Pool (Pool)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Database.Persist.Sql hiding (deleteWhereCount, updateWhereCount)
+import Database.Persist.Sql hiding (deleteWhereCount, orderClause, updateWhereCount)
 import Database.Persist.Sql.Types.Internal (IsPersistBackend(..))
 import Database.Persist.Sql.Util
 import Database.Persist.SqlBackend.Internal
