@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -40,7 +41,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Logger (NoLoggingT)
 import Control.Monad.Trans.Reader (ReaderT(..), ask, asks, withReaderT)
 import Control.Monad.Trans.Resource (MonadUnliftIO, ResourceT)
-import Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.ByteString.Char8 (readInteger)
 import Data.Coerce (coerce)
 import Data.Conduit ((.|))
