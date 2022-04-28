@@ -40,7 +40,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Logger (NoLoggingT)
 import Control.Monad.Trans.Reader (ReaderT(..), ask, asks, withReaderT)
 import Control.Monad.Trans.Resource (MonadUnliftIO, ResourceT)
-import Data.Aeson as A
+import qualified Data.Aeson as A
 import Data.ByteString.Char8 (readInteger)
 import Data.Coerce (coerce)
 import Data.Conduit ((.|))
@@ -49,9 +49,8 @@ import qualified Data.Foldable as Foldable
 import Data.Foldable (toList)
 import Data.Int (Int64)
 import Data.List (find, inits, transpose)
-import qualified Data.List.NonEmpty as NEL
 import Data.Maybe (isJust)
-import Data.Monoid (mappend, (<>))
+import Data.Monoid (mappend)
 import Data.Pool (Pool)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -524,12 +523,12 @@ instance PersistUniqueWrite (SqlFor db) where
       conn <- ask
       let escape = connEscapeRawName conn
       let refCol n = Text.concat [escape (unEntityNameDB $ getEntityDBName t), ".", n]
-      let mkUpdateText = mkUpdateText' (escape . unFieldNameDB) refCol
+      let mkUpdateFieldText = mkUpdateText' (escape . unFieldNameDB) refCol
       case connUpsertSql conn of
         Just upsertSql -> case updates of
                             [] -> generalizeQuery $ defaultUpsertBy uniqueKey record updates
                             _:_ -> do
-                                let upds = Text.intercalate "," $ map mkUpdateText updates
+                                let upds = Text.intercalate "," $ map mkUpdateFieldText updates
                                     sql = upsertSql t (persistUniqueToFieldNames uniqueKey) upds
                                     vals = map toPersistValue (toPersistFields record)
                                         ++ map updatePersistValue updates
