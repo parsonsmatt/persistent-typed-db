@@ -55,7 +55,7 @@ jobs:
           - "9.2.2"
 
     env:
-      CONFIG: "--enable-tests --enable-benchmarks"
+      CONFIG: "--enable-tests"
     steps:
       - uses: actions/checkout@v2
       - uses: haskell/actions/setup@v1
@@ -80,10 +80,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
             ${{ runner.os }}-${{ matrix.ghc }}-
-      - run: cabal v2-build all --disable-optimization --only-dependencies $CONFIG
-      - run: cabal v2-build all --disable-optimization $CONFIG
-      - run: cabal v2-test all --disable-optimization $CONFIG --test-options "--fail-on-focus"
-      - run: cabal v2-bench all --disable-optimization $CONFIG
-      - run: cabal v2-haddock all $CONFIG
+      - run: cabal v2-build --disable-optimization --only-dependencies $CONFIG
+      - run: cabal v2-build --disable-optimization $CONFIG
+      - run: cabal v2-test --disable-optimization $CONFIG --test-options "--fail-on-focus"
+      - run: cabal v2-haddock $CONFIG
         continue-on-error: true
-      - run: cabal v2-sdist all
+      - run: cabal v2-sdist 
