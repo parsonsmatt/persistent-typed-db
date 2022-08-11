@@ -1,5 +1,9 @@
 # CHANGELOG
 
+# 0.1.0.7
+
+- Support `persistent-2.14`
+
 # 0.1.0.6
 
 - Support `aeson-2`
