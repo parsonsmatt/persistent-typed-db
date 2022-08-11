@@ -1,10 +1,4 @@
-resolver: nightly-2021-03-25
+resolver: nightly-2022-08-04
 
 packages:
 - .
-
-extra-deps:
-  - persistent-2.13.1.1
-  - persistent-template-2.12.0.0
-  - esqueleto-3.4.2.2
-  - lift-type-0.1.0.1
