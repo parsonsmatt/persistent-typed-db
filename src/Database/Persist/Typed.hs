@@ -66,6 +66,8 @@ import Web.PathPieces (PathPiece)
 
 #if MIN_VERSION_persistent(2,14,0)
 import Database.Persist.Class.PersistEntity (SafeToInsert)
+#else
+import GHC.Exts (Constraint)
 #endif
 
 -- | A wrapper around 'SqlBackend' type. To specialize this to a specific
