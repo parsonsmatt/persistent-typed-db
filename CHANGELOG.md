@@ -2,7 +2,7 @@
 
 # 0.1.0.7
 
-- Support `persistent-2.14`
+- Support `persistent-2.14` [#18](https://github.com/parsonsmatt/persistent-typed-db/pull/18)
 
 # 0.1.0.6
 
