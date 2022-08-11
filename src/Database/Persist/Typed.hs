@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -62,6 +63,12 @@ import Database.Persist.TH (MkPersistSettings, mkPersistSettings)
 import Language.Haskell.TH (Name, Type(..))
 import Web.HttpApiData (FromHttpApiData, ToHttpApiData)
 import Web.PathPieces (PathPiece)
+
+#if MIN_VERSION_persistent(2,14,0)
+import Database.Persist.Class.PersistEntity (SafeToInsert)
+#else
+import GHC.Exts (Constraint)
+#endif
 
 -- | A wrapper around 'SqlBackend' type. To specialize this to a specific
 -- database, fill in the type parameter.
@@ -925,6 +932,7 @@ defaultUpsertBy
        , MonadIO m
        , PersistStoreWrite backend
        , PersistUniqueRead backend
+       , MySafeToInsert record
        )
     => Unique record   -- ^ uniqueness constraint to find by
     -> record          -- ^ new record to insert
@@ -936,3 +944,10 @@ defaultUpsertBy uniqueKey record updates = do
   where
     updateGetEntity (Entity k _) upds =
         (Entity k) `fmap` (updateGet k upds)
+
+type MySafeToInsert a =
+#if MIN_VERSION_persistent(2,14,0)
+    SafeToInsert a
+#else
+    () :: Constraint
+#endif
