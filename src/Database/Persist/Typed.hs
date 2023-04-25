@@ -44,9 +44,9 @@ module Database.Persist.Typed (
     fromSqlKeyFor,
 ) where
 
-import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Logger (NoLoggingT)
-import Control.Monad.Trans.Reader (ReaderT (..), withReaderT)
+import Control.Monad.Trans.Reader (ReaderT(..), withReaderT)
 import Control.Monad.Trans.Resource (MonadUnliftIO, ResourceT)
 import Data.Acquire (Acquire)
 import qualified Data.Aeson as A
@@ -57,10 +57,11 @@ import Data.Constraint.Unsafe (unsafeCoerceConstraint)
 import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Data.Pool (Pool)
-import Database.Persist.Sql hiding (deleteWhereCount, orderClause, updateWhereCount)
-import Database.Persist.Sql.Types.Internal (IsPersistBackend (..))
+import Database.Persist.Sql hiding
+       (deleteWhereCount, orderClause, updateWhereCount)
+import Database.Persist.Sql.Types.Internal (IsPersistBackend(..))
 import Database.Persist.TH (MkPersistSettings, mkPersistSettings)
-import Language.Haskell.TH (Name, Type (..))
+import Language.Haskell.TH (Name, Type(..))
 import Web.HttpApiData (FromHttpApiData, ToHttpApiData)
 import Web.PathPieces (PathPiece)
 
