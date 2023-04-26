@@ -50,7 +50,7 @@ import Control.Monad.Trans.Reader (ReaderT(..), withReaderT)
 import Control.Monad.Trans.Resource (MonadUnliftIO, ResourceT)
 import Data.Acquire (Acquire)
 import qualified Data.Aeson as A
-import Data.Coerce (coerce)
+import Data.Coerce (Coercible, coerce)
 import Data.Conduit (ConduitM)
 import Data.Constraint (withDict, (:-))
 import Data.Constraint.Unsafe (unsafeCoerceConstraint)
@@ -268,7 +268,10 @@ instance PersistCore (SqlFor backend) where
             , A.FromJSON
             )
 
-downcastPersistRecordBackend :: forall record backend. PersistRecordBackend record (SqlFor backend) :- PersistRecordBackend record SqlBackend
+downcastPersistRecordBackend ::
+  forall record backend.
+  Coercible (SqlFor backend) SqlBackend =>
+  PersistRecordBackend record (SqlFor backend) :- PersistRecordBackend record SqlBackend
 downcastPersistRecordBackend = unsafeCoerceConstraint
 
 specializeQueryWithInstances ::
